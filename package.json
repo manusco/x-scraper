@@ -1,0 +1,28 @@
+{
+    "name": "x-scraper",
+    "version": "0.1.6",
+    "description": "Browser extension to scrape X (Twitter) threads to clipboard",
+    "type": "module",
+    "scripts": {
+        "lint": "eslint .",
+        "lint:fix": "eslint . --fix",
+        "validate": "node scripts/validate-manifest.js",
+        "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+        "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage",
+        "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch"
+    },
+    "keywords": [
+        "twitter",
+        "x",
+        "scraper",
+        "browser-extension",
+        "chrome-extension"
+    ],
+    "author": "",
+    "license": "MIT",
+    "devDependencies": {
+        "eslint": "^8.56.0",
+        "jest": "^29.7.0",
+        "jest-environment-jsdom": "^29.7.0"
+    }
+}

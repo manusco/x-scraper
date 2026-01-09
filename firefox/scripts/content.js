@@ -1,25 +1,12 @@
 (() => {
-    // We remove the strict injection guard to allow re-injection if the extension was reloaded but the page wasn't.
-    // However, we still want to avoid double listeners if the script IS alive.
-    // The popup checks for 'ping' response. If we respond, it won't inject.
-    // If we don't respond (orphaned), it injects.
+    console.log("X-Scraper: Content script loaded (v0.1.6).");
 
-    // If we are re-injected, we might have multiple listeners if we are not careful.
-    // But 'orphaned' scripts don't receive messages from the new extension process.
-    // So only the NEW script will receive the 'ping' (if it was already injected by new extension) or 'start_scrape'.
-
-    // To be safe, let's set a flag on the window that is specific to this extension instance? 
-    // No, 'window' is shared. 
-    // Let's just add the listener. If we are the 'active' script, we'll work.
-
-    if (window.xScraperListenerAdded) {
-        // If this specific script instance already added a listener, don't add again.
-        // But if the script is re-executed?
-        // 'window' persists.
-        // If we rely on popup's Ping, we shouldn't be re-executed often.
-        // But if we are, let's just proceed.
-    }
-    window.xScraperListenerAdded = true;
+    window.xScraper = {
+        ping: () => 'pong',
+        run: async () => {
+            return await atomicScrapeLogic();
+        }
+    };
 
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (message.action === 'ping') {
@@ -27,132 +14,133 @@
             return;
         }
         if (message.action === 'start_scrape') {
-            startScraping();
+            atomicScrapeLogic().then(result => {
+                if (result.status === 'success') {
+                    chrome.runtime.sendMessage({ action: 'scrape_complete' });
+                } else {
+                    chrome.runtime.sendMessage({ action: 'scrape_error', message: result.message });
+                }
+            });
         }
     });
 
-    async function startScraping() {
+    // Shared Logic (Duplicated from popup.js for independence)
+    async function atomicScrapeLogic() {
         try {
-            reportStatus('Initializing...', 'normal');
+            const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+            const urlParts = window.location.pathname.split('/');
+            const statusIndex = urlParts.indexOf('status');
+            const mainTweetId = (statusIndex !== -1 && urlParts.length > statusIndex + 1) ? urlParts[statusIndex + 1] : null;
 
-            if (!window.location.href.includes('/status/')) {
-                throw new Error('Not a valid X thread URL.');
+            const tweetsMap = new Map();
+            const TARGET_COUNT = 100;
+            let noNewTweetsCount = 0;
+            let mainPostHandle = null;
+
+            while (tweetsMap.size < (TARGET_COUNT + 50) && noNewTweetsCount < 3) {
+                const showMoreButtons = document.querySelectorAll('[data-testid="tweet-text-show-more-link"]');
+                for (const btn of showMoreButtons) btn.click();
+                if (showMoreButtons.length > 0) await sleep(500);
+
+                const articles = document.querySelectorAll('article[data-testid="tweet"]');
+                let newFound = 0;
+
+                articles.forEach((article) => {
+                    try {
+                        const textElement = article.querySelector('[data-testid="tweetText"]');
+                        const text = textElement ? textElement.innerText : '';
+                        if (!text) return;
+
+                        const userElement = article.querySelector('[data-testid="User-Name"]');
+                        const userInfo = userElement ? userElement.innerText.split('\n') : ['Unknown'];
+                        const handle = userInfo[1] || '@unknown';
+                        const timeElement = article.querySelector('time');
+                        const timestamp = timeElement ? timeElement.getAttribute('datetime') : 'Unknown Time';
+
+                        let replyingTo = [];
+                        const replyElement = article.innerText.match(/Replying to\s+(@[a-zA-Z0-9_]+)/g);
+                        if (replyElement) {
+                            replyingTo = replyElement.map(s => s.replace('Replying to ', '').trim());
+                        }
+
+                        let tweetId = 'unknown_' + Math.random();
+                        const link = article.querySelector('a[href*="/status/"]');
+                        if (link) {
+                            const match = link.href.match(/status\/(\d+)/);
+                            if (match) tweetId = match[1];
+                        }
+
+                        const isMain = tweetId === mainTweetId;
+                        if (isMain) mainPostHandle = handle;
+
+                        if (!tweetsMap.has(tweetId)) {
+                            tweetsMap.set(tweetId, {
+                                id: tweetId,
+                                handle,
+                                timestamp,
+                                text,
+                                isMain,
+                                replyingTo
+                            });
+                            newFound++;
+                        }
+                    } catch (e) { }
+                });
+
+                if (newFound === 0) noNewTweetsCount++;
+                else noNewTweetsCount = 0;
+
+                if (tweetsMap.size >= TARGET_COUNT * 2) break;
+
+                window.scrollTo(0, document.body.scrollHeight);
+                await sleep(1500);
             }
 
-            reportStatus('Expanding tweets...', 'normal');
-            await expandTweets();
-
-            reportStatus('Scrolling to load replies...', 'normal');
-            await autoScroll();
-
-            reportStatus('Scraping content...', 'normal');
-            const data = scrapeData();
-
-            const formattedText = formatData(data);
-            await copyToClipboard(formattedText);
-
-            chrome.runtime.sendMessage({ action: 'scrape_complete' });
-
-        } catch (err) {
-            console.error(err);
-            chrome.runtime.sendMessage({ action: 'scrape_error', message: err.message });
-        }
-    }
-
-    function reportStatus(text, type) {
-        chrome.runtime.sendMessage({ action: 'status_update', status: text, type: type });
-    }
-
-    function sleep(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    }
-
-    async function expandTweets() {
-        const showMoreButtons = document.querySelectorAll('[data-testid="tweet-text-show-more-link"]');
-        for (const btn of showMoreButtons) {
-            btn.click();
-            await sleep(500 + Math.random() * 500);
-        }
-    }
-
-    async function autoScroll() {
-        const maxScrolls = 5;
-        let lastHeight = document.body.scrollHeight;
-
-        for (let i = 0; i < maxScrolls; i++) {
-            window.scrollTo(0, document.body.scrollHeight);
-            await sleep(1500 + Math.random() * 1000);
-
-            let newHeight = document.body.scrollHeight;
-            if (newHeight === lastHeight) {
-                break;
+            const allTweets = Array.from(tweetsMap.values());
+            let mainPost = allTweets.find(t => t.isMain);
+            if (!mainPost && allTweets.length > 0) {
+                mainPost = allTweets[0];
+                mainPostHandle = mainPost.handle;
             }
-            lastHeight = newHeight;
-        }
-    }
+            if (!mainPost) return { status: 'error', message: 'No tweets found' };
 
-    function scrapeData() {
-        const tweets = [];
-        const articles = document.querySelectorAll('article[data-testid="tweet"]');
+            const validTweets = [];
+            let subCommentCount = 0;
+            const replies = allTweets.filter(t => t.id !== mainPost.id);
 
-        articles.forEach((article, index) => {
-            try {
-                const userElement = article.querySelector('[data-testid="User-Name"]');
-                const userInfo = userElement ? userElement.innerText.split('\n') : ['Unknown'];
-                const name = userInfo[0] || 'Unknown';
-                const handle = userInfo[1] || '@unknown';
+            for (const tweet of replies) {
+                if (validTweets.length >= TARGET_COUNT) break;
 
-                const timeElement = article.querySelector('time');
-                const timestamp = timeElement ? timeElement.getAttribute('datetime') : 'Unknown Time';
-
-                const textElement = article.querySelector('[data-testid="tweetText"]');
-                let text = '';
-                if (textElement) {
-                    text = textElement.innerText;
+                let isLevel1 = false;
+                if (tweet.replyingTo.length === 0) {
+                    isLevel1 = true;
+                } else if (tweet.replyingTo.length === 1 && tweet.replyingTo[0] === mainPostHandle) {
+                    isLevel1 = true;
+                } else {
+                    isLevel1 = false;
                 }
 
-                tweets.push({
-                    name,
-                    handle,
-                    timestamp,
-                    text,
-                    isMain: index === 0
-                });
-            } catch (e) {
-                console.warn('Failed to scrape a tweet', e);
+                if (isLevel1) {
+                    validTweets.push(tweet);
+                    subCommentCount = 0;
+                } else {
+                    if (subCommentCount < 5) {
+                        validTweets.push(tweet);
+                        subCommentCount++;
+                    }
+                }
             }
-        });
 
-        return tweets;
-    }
+            let output = `[Main Post]\n${mainPost.handle} (${mainPost.timestamp}):\n${mainPost.text}\n\n`;
+            output += `[Replies] (${validTweets.length})\n`;
+            validTweets.forEach((t, i) => output += `${i + 1}. ${t.handle}: ${t.text}\n`);
 
-    function formatData(tweets) {
-        if (tweets.length === 0) return "No tweets found.";
+            try { await navigator.clipboard.writeText(output); } catch (e) { }
 
-        let output = "";
-        const main = tweets[0];
-        output += `[Main Post]\n${main.handle} (${main.timestamp}):\n${main.text}\n\n`;
+            return { status: 'success', data: output, count: validTweets.length + 1 };
 
-        output += `[Replies]\n`;
-        for (let i = 1; i < tweets.length; i++) {
-            const t = tweets[i];
-            output += `${i}. ${t.handle}: ${t.text}\n`;
-        }
-
-        return output;
-    }
-
-    async function copyToClipboard(text) {
-        try {
-            await navigator.clipboard.writeText(text);
         } catch (err) {
-            console.error('Clipboard API failed, trying fallback', err);
-            const textArea = document.createElement("textarea");
-            textArea.value = text;
-            document.body.appendChild(textArea);
-            textArea.select();
-            document.execCommand("copy");
-            document.body.removeChild(textArea);
+            return { status: 'error', message: err.toString() };
         }
     }
 
