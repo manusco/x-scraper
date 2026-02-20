@@ -50,67 +50,62 @@ export async function atomicScrape() {
             let newFound = 0;
 
             articles.forEach((article) => {
-                try {
-                    // Extract Text
-                    const textElement = article.querySelector('[data-testid="tweetText"]');
-                    const text = textElement ? textElement.innerText : '';
-                    if (!text) return;
-
-                    // Extract Handle/Time
-                    const userElement = article.querySelector('[data-testid="User-Name"]');
-                    const userInfo = userElement ? userElement.innerText.split('\n') : ['Unknown'];
-                    const handle = userInfo[1] || '@unknown';
-                    const timeElement = article.querySelector('time');
-                    const timestamp = timeElement ? timeElement.getAttribute('datetime') : 'Unknown Time';
-
-                    // Extract "Replying to"
-                    let replyingTo = [];
-                    const replyElement = article.innerText.match(/Replying to\s+(@[a-zA-Z0-9_]+)/g);
-                    if (replyElement) {
-                        replyingTo = replyElement.map(s => s.replace('Replying to ', '').trim());
-                    }
-
-                    // ID Generation
-                    let tweetId = 'unknown_' + Math.random();
-                    const link = article.querySelector('a[href*="/status/"]');
-                    if (link) {
-                        const match = link.href.match(/status\/(\d+)/);
-                        if (match) tweetId = match[1];
-                    }
-
-                    const isMain = tweetId === mainTweetId;
-                    if (isMain) mainPostHandle = handle;
-
-                    if (!tweetsMap.has(tweetId)) {
-                        tweetsMap.set(tweetId, {
-                            id: tweetId,
-                            handle,
-                            timestamp,
-                            text,
-                            isMain,
-                            replyingTo
-                        });
-                        newFound++;
-                    }
-                } catch (e) {
-                    console.error('[Scraper] Error processing tweet:', e);
+                const tweet = extractTweetData(article);
+                if (tweet && !tweetsMap.has(tweet.id)) {
+                    tweetsMap.set(tweet.id, tweet);
+                    if (tweet.id === mainTweetId) mainPostHandle = tweet.handle;
+                    newFound++;
                 }
             });
 
             log(`Scraped cycle: ${tweetsMap.size} total (+${newFound} new)`);
+            noNewTweetsCount = (newFound === 0) ? noNewTweetsCount + 1 : 0;
 
-            if (newFound === 0) {
-                noNewTweetsCount++;
-            } else {
-                noNewTweetsCount = 0;
-            }
-
-            // Check if we have enough tweets
             if (tweetsMap.size >= SCRAPER_CONFIG.TARGET_COUNT * 2) break;
 
             // C. Scroll
             window.scrollTo(0, document.body.scrollHeight);
             await sleep(SCRAPER_CONFIG.SCROLL_WAIT_MS);
+        }
+
+        /**
+         * Extract structured data from a tweet article element
+         */
+        function extractTweetData(article) {
+            try {
+                const textElement = article.querySelector('[data-testid="tweetText"]');
+                const text = textElement ? textElement.innerText : '';
+                if (!text) return null;
+
+                const userElement = article.querySelector('[data-testid="User-Name"]');
+                const userInfo = userElement ? userElement.innerText.split('\n') : ['Unknown'];
+                const handle = userInfo[1] || '@unknown';
+
+                const timeElement = article.querySelector('time');
+                const timestamp = timeElement ? timeElement.getAttribute('datetime') : 'Unknown Time';
+
+                const replyingTo = (article.innerText.match(/Replying to\s+(@[a-zA-Z0-9_]+)/g) || [])
+                    .map(s => s.replace('Replying to ', '').trim());
+
+                let tweetId = 'unknown_' + Math.random();
+                const link = article.querySelector('a[href*="/status/"]');
+                if (link) {
+                    const match = link.href.match(/status\/(\d+)/);
+                    if (match) tweetId = match[1];
+                }
+
+                return {
+                    id: tweetId,
+                    handle,
+                    timestamp,
+                    text,
+                    isMain: tweetId === mainTweetId,
+                    replyingTo
+                };
+            } catch (e) {
+                console.error('[Scraper] Error processing tweet:', e);
+                return null;
+            }
         }
 
         // 4. Process & Filter
@@ -143,28 +138,18 @@ export async function atomicScrape() {
 
         for (const tweet of otherComments) {
             // Stop when we have enough non-author comments
-            if ((validTweets.length - authorThreadPosts.length) >= SCRAPER_CONFIG.TARGET_COUNT) break;
+            const nonAuthorCount = validTweets.length - authorThreadPosts.length;
+            if (nonAuthorCount >= SCRAPER_CONFIG.TARGET_COUNT) break;
 
-            // Determine if Level 1 (direct reply to main post)
-            let isLevel1 = false;
-
-            if (tweet.replyingTo.length === 0) {
-                isLevel1 = true;
-            } else if (tweet.replyingTo.length === 1 && tweet.replyingTo[0] === mainPostHandle) {
-                isLevel1 = true;
-            } else {
-                isLevel1 = false;
-            }
+            const isLevel1 = tweet.replyingTo.length === 0 ||
+                (tweet.replyingTo.length === 1 && tweet.replyingTo[0] === mainPostHandle);
 
             if (isLevel1) {
                 validTweets.push(tweet);
                 subCommentCount = 0;
-            } else {
-                // Level 2 (Sub-comment)
-                if (subCommentCount < SCRAPER_CONFIG.MAX_SUB_COMMENTS) {
-                    validTweets.push(tweet);
-                    subCommentCount++;
-                }
+            } else if (subCommentCount < SCRAPER_CONFIG.MAX_SUB_COMMENTS) {
+                validTweets.push(tweet);
+                subCommentCount++;
             }
         }
 
