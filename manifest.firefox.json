@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
-    "name": "X-Scraper (Firefox)",
-    "version": "0.1.6",
+    "name": "X-Scraper",
+    "version": "0.1.7",
     "description": "Scrape X (Twitter) threads to clipboard.",
     "permissions": [
         "activeTab",
@@ -25,9 +25,20 @@
         "48": "icons/icon.svg",
         "128": "icons/icon.svg"
     },
+    "web_accessible_resources": [
+        {
+            "resources": [
+                "shared/scraper.js"
+            ],
+            "matches": [
+                "https://x.com/*",
+                "https://twitter.com/*"
+            ]
+        }
+    ],
     "browser_specific_settings": {
         "gecko": {
-            "id": "xscraper@example.com",
+            "id": "xscraper@manusco.com",
             "strict_min_version": "109.0"
         }
     }
