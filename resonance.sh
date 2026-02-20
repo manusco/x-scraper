@@ -1,5 +1,5 @@
 #!/bin/bash
-# resonance.sh - The "Wake Up" Call for Antigravity Agents
+# resonance.sh - The "Wake Up" Call for Resonance v2.0
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -7,79 +7,47 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-# Check for update command
-if [ "$1" == "update" ]; then
-    echo -e "${YELLOW}📡 Checking for Resonance updates...${NC}"
-    echo ""
-    
-    # Get local version from AGENTS.md
-    if [ -f "AGENTS.md" ]; then
-        LOCAL_VERSION=$(grep -m 1 "# RESONANCE v" AGENTS.md | sed 's/.*v\([0-9.]*\).*/\1/')
-        echo "   Local version: v$LOCAL_VERSION"
-        
-        # Fetch remote version
-        REMOTE_VERSION=$(curl -s https://raw.githubusercontent.com/manusco/resonance/main/AGENTS.md | grep -m 1 "# RESONANCE v" | sed 's/.*v\([0-9.]*\).*/\1/')
-        
-        if [ -n "$REMOTE_VERSION" ]; then
-            echo "   Latest version: v$REMOTE_VERSION"
-            echo ""
-            
-            if [ "$LOCAL_VERSION" != "$REMOTE_VERSION" ]; then
-                echo -e "${YELLOW}✨ Update available!${NC}"
-                echo ""
-                echo "To update, run:"
-                echo "  curl -o AGENTS.md https://raw.githubusercontent.com/manusco/resonance/main/AGENTS.md"
-                echo ""
-                echo "Note: Your .resonance/ folder will not be affected."
-            else
-                echo -e "${GREEN}✅ You're running the latest version!${NC}"
-            fi
-        else
-            echo -e "${RED}❌ Unable to check for updates (network issue?)${NC}"
-        fi
-    else
-        echo -e "${RED}❌ AGENTS.md not found${NC}"
-    fi
-    
+echo "🔮 Resonance v2.0 System Check:"
+echo "================================================"
+
+# 1. Check Memory (The Brain)
+if [ ! -f .resonance/01_state.md ]; then
+    echo "🧠 Resonance Core Loaded."
+    echo "👉 Action Required: Run '@Resonance /init' in your chat to configure this project."
     exit 0
 fi
+echo -e "${GREEN}✅ Memory Active (.resonance/)${NC}"
 
-echo "🔮 Resonance System Check:"
-echo "================================"
-
-# Check for corrupted state
-if [ ! -f .resonance/01_state.md ]; then
-    echo "⚠️  CRITICAL: Memory corrupted. State file missing."
-    echo "   Run 'Resonance Init' in Antigravity to rebuild."
+# 2. Check Skills (The Talent)
+SKILL_COUNT=$(ls -1 .agent/skills/resonance-* 2>/dev/null | wc -l)
+if [ "$SKILL_COUNT" -eq "0" ]; then
+    echo -e "${RED}⚠️  CRITICAL: No Resonance Skills found in .agent/skills/.${NC}"
     exit 1
 fi
+echo -e "${GREEN}✅ Elite Skills Loaded ($SKILL_COUNT active)${NC}"
 
-# Check for knowledge directory
-if [ ! -d .resonance/knowledge ]; then
-    echo "   Creating knowledge directory..."
-    mkdir -p .resonance/knowledge
+# 3. Check Workflows (The Protocol)
+WORKFLOW_COUNT=$(ls -1 .agent/workflows/*.md 2>/dev/null | wc -l)
+echo -e "${GREEN}✅ Workflows Ready ($WORKFLOW_COUNT protocols)${NC}"
+
+# 4. Ensure Docs Structure
+if [ ! -d docs ]; then
+    mkdir -p docs/specs docs/architecture docs/reports
+    echo "   Created docs/ directory structure."
 fi
 
-# Create Documentation Structure (Unified Memory)
-mkdir -p docs/specs
-mkdir -p docs/architecture
-mkdir -p docs/reports
-
-# Load consciousness
+echo "================================================"
 echo ""
 echo "📖 Loading Soul (Vision):"
-cat .resonance/00_soul.md
+head -n 5 .resonance/00_soul.md
+echo "..."
 echo ""
-echo "================================"
+echo "📊 Loading State (Status):"
+head -n 10 .resonance/01_state.md
+echo "..."
 echo ""
-echo "📊 Loading State (Current Status):"
-cat .resonance/01_state.md
+echo "================================================"
+echo -e "${GREEN}System Online. Ready for orders.${NC}"
 echo ""
-echo "================================"
-echo ""
-echo "✅ Resonance System Online"
-echo ""
-echo "Available specialist roles:"
-ls -1 .resonance/roles/ 2>/dev/null | sed 's/\.md$//' | sed 's/^/  - /' || echo "  (none found)"
-echo ""
-echo "💡 Tip: Run './resonance.sh update' to check for framework updates"
+echo "Try: @Resonance /status"
+

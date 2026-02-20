@@ -21,3 +21,12 @@
 - **Finding**: Silent error handling (empty catch blocks)
   - **Lesson**: Always log errors, even if you can't recover
 - Report saved: `docs/reports/HEALTH-2026-01-09.md`
+
+## 2026-02-20 - Resonance Upgrade ('The Great Migration' to v2.0)
+- Upgraded system core from Resonance v1.7 to v2.0.
+- **Structural Overhaul**:
+  - Migrated Roles to **Skills** under .agent/skills/.
+  - Migrated Workflows to .agent/workflows/.
+  - Added .resonance/04_systems.md.
+- **Kernel Update**: Updated AGENTS.md and resonance.sh.
+- **Memory Preserved**: Core context files remained intact.

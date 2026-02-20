@@ -46,7 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
     scrapeBtn.addEventListener('click', async () => {
         scrapeBtn.disabled = true;
         logger.clear();
-        logger.log('Starting scrape process (v0.1.6)...');
+        logger.log('Starting scrape process (v0.1.7)...');
 
         try {
             await runScrapeProcess();
@@ -74,11 +74,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function runAtomicExecution(tabId) {
         try {
-            logger.log('Injecting Atomic Scraper function...');
-
+            const scraperUrl = chrome.runtime.getURL('shared/scraper.js');
             const results = await chrome.scripting.executeScript({
                 target: { tabId: tabId },
-                func: atomicScrape // The function below
+                func: atomicScrape, // The function below
+                args: [scraperUrl]
             });
 
             logger.log('Atomic Scraper returned.');
@@ -116,9 +116,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- ATOMIC SCRAPER FUNCTION ---
     // Imported from shared module to eliminate code duplication
-    async function atomicScrape() {
+    async function atomicScrape(scraperUrl) {
         // Import and execute the shared scraper
-        const { atomicScrape: sharedScraper } = await import('../shared/scraper.js');
+        const { atomicScrape: sharedScraper } = await import(scraperUrl);
         return await sharedScraper();
     }
 });

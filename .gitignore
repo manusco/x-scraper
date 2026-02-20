@@ -1,26 +1,23 @@
-# Dependencies
+# General
 node_modules/
-package-lock.json
-yarn.lock
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS
 .DS_Store
-Thumbs.db
-
-# Build
+.env
 dist/
 build/
-*.zip
 
-# Logs
-*.log
-npm-debug.log*
+# IDEs
+.vscode/
+.idea/
 
-# Temp
-temp_*.html
+# Resonance Protocol
+# We explicitly want to track the memory bank (The Brain)
+!.resonance/*.md
+
+
+# Security: Never commit secrets or temporary context dumps
+.resonance/secrets/
+.resonance/tmp/
+.resonance/scripts/boot.local
+
+# Website (separate repository)
+website/
