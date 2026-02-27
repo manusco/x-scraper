@@ -5,33 +5,95 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>X-Scraper</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="popup.css">
 </head>
 
 <body>
-    <div class="container">
-        <h1>X-Scraper <div style="color: #999; font-size: 10px; margin-top: 10px;">v0.1.7</div>
-        </h1>
-        <p class="description">Scrape the current thread to clipboard.</p>
-
-        <button id="scrapeBtn" class="primary-btn">Scrape Thread</button>
-
-        <div id="status" class="status-box hidden">
-            <span id="statusText">Idle</span>
+    <div class="header">
+        <div class="logo">
+            <img src="../icons/icon48.png" alt="Logo" width="24" height="24">
+            <h1>X-Scraper</h1>
         </div>
+        <span class="version">v0.1.7</span>
+    </div>
 
-        <div class="debug-controls">
-            <button id="toggleLogsBtn" class="text-btn">Show Logs</button>
-        </div>
+    <p class="description">Extract thread knowledge without friction.</p>
 
-        <div id="logContainer" class="log-container hidden">
-            <div class="log-header">
-                <span>Debug Logs</span>
-                <button id="copyLogsBtn" class="small-btn">Copy</button>
+    <div class="settings-card">
+        <div class="setting-item">
+            <div class="setting-text">
+                <span class="setting-title">Export Format</span>
             </div>
-            <pre id="logContent"></pre>
+            <select id="settingFormat" class="sleek-select">
+                <option value="markdown">Markdown</option>
+                <option value="json">JSON</option>
+                <option value="text">Plain Text</option>
+            </select>
+        </div>
+
+        <div class="setting-item">
+            <div class="setting-text">
+                <span class="setting-title">Unroll Thread</span>
+                <span class="setting-desc">Author's tweets only</span>
+            </div>
+            <label class="toggle-switch">
+                <input type="checkbox" id="settingUnroll">
+                <span class="slider"></span>
+            </label>
+        </div>
+
+        <div class="setting-item">
+            <div class="setting-text">
+                <span class="setting-title">Include Metrics</span>
+                <span class="setting-desc">Likes, Reposts, Replies</span>
+            </div>
+            <label class="toggle-switch">
+                <input type="checkbox" id="settingMetrics" checked>
+                <span class="slider"></span>
+            </label>
+        </div>
+
+        <div class="setting-item">
+            <div class="setting-text">
+                <span class="setting-title">Save as File</span>
+                <span class="setting-desc">Download instead of clipboard</span>
+            </div>
+            <label class="toggle-switch">
+                <input type="checkbox" id="settingDownload">
+                <span class="slider"></span>
+            </label>
+        </div>
+
+        <div class="setting-item">
+            <div class="setting-text">
+                <span class="setting-title">Comment Depth</span>
+                <span class="setting-desc">Max sub-comment tiers (0-25)</span>
+            </div>
+            <input type="number" id="settingSubcomments" class="sleek-number" value="5" min="0" max="25">
         </div>
     </div>
+
+    <button id="scrapeBtn" class="primary-btn">
+        <span id="btnText">Execute Protocol</span>
+    </button>
+
+    <div id="status" class="status-box hidden">
+        <span id="statusText">Idle</span>
+    </div>
+
+    <div class="footer-actions">
+        <button id="toggleLogsBtn" class="text-btn">View Runtime Protocol Specs</button>
+    </div>
+
+    <div id="logContainer" class="log-container hidden">
+        <div class="log-header">
+            <span>Runtime Protocol Engine</span>
+            <button id="copyLogsBtn" class="small-btn">Copy</button>
+        </div>
+        <pre id="logContent"></pre>
+    </div>
+
     <script src="popup.js"></script>
 </body>
 

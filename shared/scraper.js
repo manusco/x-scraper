@@ -15,9 +15,17 @@ export const SCRAPER_CONFIG = {
  * Main scraping function - executes the complete thread scraping logic
  * @returns {Promise<{status: string, data?: string, count?: number, message?: string}>}
  */
-export async function atomicScrape() {
+export async function atomicScrape(userConfig = {}) {
+    const config = { ...SCRAPER_CONFIG, ...userConfig };
+
     const log = (msg) => console.log(`[Atomic Scraper] ${msg}`);
     log('Starting v0.1.7 Scraper...');
+
+    const emitProgress = (msg) => {
+        try {
+            chrome.runtime.sendMessage({ action: 'progress', text: msg }).catch(() => { });
+        } catch (e) { }
+    };
 
     try {
         // Helpers
@@ -46,26 +54,46 @@ export async function atomicScrape() {
             if (showMoreButtons.length > 0) await sleep(SCRAPER_CONFIG.EXPAND_WAIT_MS);
 
             // B. Scrape Visible Tweets
-            const articles = document.querySelectorAll('article[data-testid="tweet"]');
+            const cells = document.querySelectorAll('div[data-testid="cellInnerDiv"]');
             let newFound = 0;
+            let hitBoundary = false;
 
-            articles.forEach((article) => {
-                const tweet = extractTweetData(article);
-                if (tweet && !tweetsMap.has(tweet.id)) {
-                    tweetsMap.set(tweet.id, tweet);
-                    if (tweet.id === mainTweetId) mainPostHandle = tweet.handle;
-                    newFound++;
+            for (const cell of cells) {
+                if (hitBoundary) continue;
+
+                const textContext = cell.innerText || cell.textContent || '';
+                // Check if this cell is a boundary indicator
+                if (/^(Discover more|More posts|More Tweets)$/i.test(textContext.trim()) && !cell.querySelector('article')) {
+                    log('Hit boundary: ' + textContext.trim());
+                    hitBoundary = true;
+                    continue;
                 }
-            });
+
+                const article = cell.querySelector('article[data-testid="tweet"]');
+                if (article) {
+                    const tweet = extractTweetData(article);
+                    if (tweet && !tweetsMap.has(tweet.id)) {
+                        tweetsMap.set(tweet.id, tweet);
+                        if (tweet.id === mainTweetId) mainPostHandle = tweet.handle;
+                        newFound++;
+                    }
+                }
+            }
 
             log(`Scraped cycle: ${tweetsMap.size} total (+${newFound} new)`);
+            emitProgress(`Scraping... (${tweetsMap.size} tweets gathered)`);
             noNewTweetsCount = (newFound === 0) ? noNewTweetsCount + 1 : 0;
 
-            if (tweetsMap.size >= SCRAPER_CONFIG.TARGET_COUNT * 2) break;
+            if (hitBoundary) {
+                log('Boundary reached, stopping scroll.');
+                break;
+            }
+
+            if (tweetsMap.size >= config.TARGET_COUNT * 2) break;
 
             // C. Scroll
             window.scrollTo(0, document.body.scrollHeight);
-            await sleep(SCRAPER_CONFIG.SCROLL_WAIT_MS);
+            await sleep(config.SCROLL_WAIT_MS);
         }
 
         /**
@@ -73,13 +101,15 @@ export async function atomicScrape() {
          */
         function extractTweetData(article) {
             try {
-                const textElement = article.querySelector('[data-testid="tweetText"]');
-                const text = textElement ? textElement.innerText : '';
-                if (!text) return null;
+                const textElements = article.querySelectorAll('[data-testid="tweetText"]');
+                let text = textElements.length > 0 ? textElements[0].innerText : '';
+                if (textElements.length > 1) {
+                    text += '\n[Quoted]: ' + textElements[1].innerText;
+                }
 
                 const userElement = article.querySelector('[data-testid="User-Name"]');
-                const userInfo = userElement ? userElement.innerText.split('\n') : ['Unknown'];
-                const handle = userInfo[1] || '@unknown';
+                const handleMatch = userElement ? userElement.innerText.match(/@[a-zA-Z0-9_]+/) : null;
+                const handle = handleMatch ? handleMatch[0] : '@unknown';
 
                 const timeElement = article.querySelector('time');
                 const timestamp = timeElement ? timeElement.getAttribute('datetime') : 'Unknown Time';
@@ -87,20 +117,67 @@ export async function atomicScrape() {
                 const replyingTo = (article.innerText.match(/Replying to\s+(@[a-zA-Z0-9_]+)/g) || [])
                     .map(s => s.replace('Replying to ', '').trim());
 
-                let tweetId = 'unknown_' + Math.random();
-                const link = article.querySelector('a[href*="/status/"]');
-                if (link) {
-                    const match = link.href.match(/status\/(\d+)/);
-                    if (match) tweetId = match[1];
+                let tweetId = null;
+
+                // 1. Check header for reply IDs (Reliable for replies and avoids quoted tweet IDs)
+                if (userElement) {
+                    const timeLink = userElement.querySelector('a[href*="/status/"]');
+                    if (timeLink) {
+                        const match = timeLink.href.match(/status\/(\d+)/);
+                        if (match) tweetId = match[1];
+                    }
+                }
+
+                // 2. Identify the main tweet reliably
+                if (!tweetId && mainTweetId) {
+                    const links = article.querySelectorAll('a[href*="/status/"]');
+                    for (const link of links) {
+                        const match = link.href.match(/status\/(\d+)/);
+                        if (match && match[1] === mainTweetId) {
+                            tweetId = match[1];
+                            break;
+                        }
+                    }
+                    if (!tweetId) {
+                        tweetId = mainTweetId;
+                    }
+                }
+
+                if (!tweetId) tweetId = 'unknown_' + Math.random();
+
+                // Extra check for image media / visual awareness
+                const imageElements = article.querySelectorAll('div[data-testid="tweetPhoto"] img, div[data-testid="videoComponent"] video');
+                imageElements.forEach((img, index) => {
+                    const alt = img.getAttribute('alt');
+                    text += `\n[Media${imageElements.length > 1 ? ` ${(index + 1)}` : ''}: ${alt ? alt : 'Visual Attachment'}]`;
+                });
+
+                // Extract Metrics optionally
+                let metrics = { replies: 0, reposts: 0, likes: 0, views: 0 };
+                article.querySelectorAll('[role="group"] [aria-label]').forEach(el => {
+                    const label = el.getAttribute('aria-label').toLowerCase();
+                    const num = parseInt(label.replace(/[^0-9]/g, ''), 10);
+                    if (!isNaN(num)) {
+                        if (label.includes('repl')) metrics.replies = num;
+                        if (label.includes('repost')) metrics.reposts = num;
+                        if (label.includes('like')) metrics.likes = num;
+                        if (label.includes('view')) metrics.views = num;
+                    }
+                });
+
+                // Do not drop main tweet even if it's just media
+                if (!text && !article.querySelector('img') && tweetId !== mainTweetId) {
+                    return null;
                 }
 
                 return {
                     id: tweetId,
                     handle,
                     timestamp,
-                    text,
+                    text: text || '[Media/Empty]',
                     isMain: tweetId === mainTweetId,
-                    replyingTo
+                    replyingTo,
+                    metrics
                 };
             } catch (e) {
                 console.error('[Scraper] Error processing tweet:', e);
@@ -121,50 +198,84 @@ export async function atomicScrape() {
             return { status: 'error', message: 'No tweets found' };
         }
 
-        // Filter Logic
+        // Filter Logic - Maintain Chronological DOM Order
         const validTweets = [];
+        let currentSubCommentCount = 0;
+        let nonAuthorCount = 0;
 
-        const replies = allTweets.filter(t => t.id !== mainPost.id);
+        for (let i = 0; i < allTweets.length; i++) {
+            const tweet = allTweets[i];
 
-        // Separate author thread posts from other user comments
-        const authorThreadPosts = replies.filter(t => t.handle === mainPostHandle);
-        const otherComments = replies.filter(t => t.handle !== mainPostHandle);
+            // Skip main post since we process it directly at output
+            if (tweet.id === mainPost.id) continue;
 
-        // Include ALL author thread posts (these are thread continuations, not comments)
-        validTweets.push(...authorThreadPosts);
+            const isAuthor = tweet.handle === mainPostHandle;
 
-        // Apply TARGET_COUNT limit only to non-author comments
-        let subCommentCount = 0;
+            // Determine level: L1 means direct reply toOP or author's own thread extension
+            let isLevel1 = false;
+            if (isAuthor) {
+                isLevel1 = true;
+            } else if (tweet.replyingTo.length === 0) {
+                isLevel1 = true;
+            } else if (tweet.replyingTo.length === 1 && tweet.replyingTo[0] === mainPostHandle) {
+                isLevel1 = true;
+            }
 
-        for (const tweet of otherComments) {
-            // Stop when we have enough non-author comments
-            const nonAuthorCount = validTweets.length - authorThreadPosts.length;
-            if (nonAuthorCount >= SCRAPER_CONFIG.TARGET_COUNT) break;
-
-            const isLevel1 = tweet.replyingTo.length === 0 ||
-                (tweet.replyingTo.length === 1 && tweet.replyingTo[0] === mainPostHandle);
+            // UNROLL feature: Ignore entire post if not author
+            if (config.UNROLL_THREAD && !isAuthor) {
+                continue;
+            }
 
             if (isLevel1) {
+                currentSubCommentCount = 0; // Starts a fresh group
                 validTweets.push(tweet);
-                subCommentCount = 0;
-            } else if (subCommentCount < SCRAPER_CONFIG.MAX_SUB_COMMENTS) {
-                validTweets.push(tweet);
-                subCommentCount++;
+                if (!isAuthor) nonAuthorCount++;
+            } else {
+                // It is a sub-comment
+                if (currentSubCommentCount < config.MAX_SUB_COMMENTS) {
+                    validTweets.push(tweet);
+                    currentSubCommentCount++;
+                    if (!isAuthor) nonAuthorCount++;
+                } else {
+                    // Maximum subcomments reached
+                }
             }
+
+            // Stop when we hit the total requested limit for non-author tweets
+            if (nonAuthorCount >= config.TARGET_COUNT) break;
         }
 
         // 5. Format Output
-        let output = `[Main Post]\n${mainPost.handle} (${mainPost.timestamp}):\n${mainPost.text}\n\n`;
-        output += `[Replies] (${validTweets.length})\n`;
+        let output = '';
 
-        validTweets.forEach((t, i) => {
-            output += `${i + 1}. ${t.handle}: ${t.text}\n`;
-        });
+        const renderMetrics = (m) => config.INCLUDE_METRICS ? `  [💡 ${m.likes} Likes | 🔁 ${m.reposts} Reposts | 💬 ${m.replies} Replies | 👁️ ${m.views} Views]` : '';
+        const renderMarkdownMetrics = (m) => config.INCLUDE_METRICS ? `\n> *${m.likes} Likes | ${m.reposts} Reposts | ${m.replies} Replies | ${m.views} Views*` : '';
 
-        try {
-            await navigator.clipboard.writeText(output);
-        } catch (e) {
-            console.error('[Scraper] Failed to copy to clipboard:', e);
+        if (config.FORMAT === 'json') {
+            const dataToExport = { mainPost, replies: validTweets };
+            if (!config.INCLUDE_METRICS) {
+                delete dataToExport.mainPost.metrics;
+                dataToExport.replies.forEach(t => delete t.metrics);
+            }
+            output = JSON.stringify(dataToExport, null, 2);
+        } else if (config.FORMAT === 'markdown') {
+            output = `# Thread by ${mainPost.handle}\n\n`;
+            output += `**${mainPost.handle}** (${mainPost.timestamp}):\n${mainPost.text}${renderMarkdownMetrics(mainPost.metrics)}\n\n`;
+
+            if (validTweets.length > 0) {
+                output += `## ${config.UNROLL_THREAD ? 'Thread Breakdown' : 'Replies'} (${validTweets.length})\n\n`;
+                validTweets.forEach((t) => {
+                    output += `> **${t.handle}**: ${t.text.replace(/\n/g, '\n> ')}${renderMarkdownMetrics(t.metrics)}\n\n`;
+                });
+            }
+        } else {
+            output = `[Main Post]\n${mainPost.handle} (${mainPost.timestamp}):\n${mainPost.text}\n${renderMetrics(mainPost.metrics)}\n\n`;
+            if (validTweets.length > 0) {
+                output += `[${config.UNROLL_THREAD ? 'Thread Extension' : 'Replies'}] (${validTweets.length})\n`;
+                validTweets.forEach((t, i) => {
+                    output += `${i + 1}. ${t.handle}: ${t.text}\n${renderMetrics(t.metrics)}\n`;
+                });
+            }
         }
 
         return { status: 'success', data: output, count: validTweets.length + 1 };
