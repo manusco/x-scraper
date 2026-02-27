@@ -19,7 +19,7 @@ export async function atomicScrape(userConfig = {}) {
     const config = { ...SCRAPER_CONFIG, ...userConfig };
 
     const log = (msg) => console.log(`[Atomic Scraper] ${msg}`);
-    log('Starting v0.1.7 Scraper...');
+    log('Starting v0.2.0 Scraper...');
 
     const emitProgress = (msg) => {
         try {

@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
     "name": "X-Scraper",
-    "version": "0.1.7",
-    "description": "Scrape X (Twitter) threads to clipboard.",
+    "version": "0.2.0",
+    "description": "Extract X (Twitter) threads, replies, and bookmarks as Markdown, JSON, or plain text. Includes metrics, resource harvesting, webhook integration, and bookmark archiving.",
     "permissions": [
         "activeTab",
         "scripting",
