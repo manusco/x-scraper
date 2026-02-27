@@ -13,14 +13,27 @@ document.addEventListener('DOMContentLoaded', () => {
     const settingUnroll = document.getElementById('settingUnroll');
     const settingMetrics = document.getElementById('settingMetrics');
     const settingDownload = document.getElementById('settingDownload');
+    const settingLinks = document.getElementById('settingLinks');
+    const settingWebhook = document.getElementById('settingWebhook');
+    const bookmarksBanner = document.getElementById('bookmarksBanner');
+
+    // Detect Bookmarks Mode
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs[0] && tabs[0].url && tabs[0].url.includes('/i/bookmarks')) {
+            bookmarksBanner.classList.remove('hidden');
+            document.getElementById('btnText').textContent = 'Archive Bookmarks';
+        }
+    });
 
     // Load Settings
-    chrome.storage.local.get(['maxSubcomments', 'format', 'unroll', 'metrics', 'download'], (result) => {
+    chrome.storage.local.get(['maxSubcomments', 'format', 'unroll', 'metrics', 'download', 'links', 'webhook'], (result) => {
         if (result.maxSubcomments !== undefined) settingSubcomments.value = result.maxSubcomments;
         if (result.format !== undefined) settingFormat.value = result.format;
         if (result.unroll !== undefined) settingUnroll.checked = result.unroll;
         if (result.metrics !== undefined) settingMetrics.checked = result.metrics;
         if (result.download !== undefined) settingDownload.checked = result.download;
+        if (result.links !== undefined) settingLinks.checked = result.links;
+        if (result.webhook !== undefined) settingWebhook.value = result.webhook;
     });
 
     // Save Settings
@@ -30,7 +43,9 @@ document.addEventListener('DOMContentLoaded', () => {
             format: settingFormat.value,
             unroll: settingUnroll.checked,
             metrics: settingMetrics.checked,
-            download: settingDownload.checked
+            download: settingDownload.checked,
+            links: settingLinks.checked,
+            webhook: settingWebhook.value.trim()
         });
     };
 
@@ -39,6 +54,8 @@ document.addEventListener('DOMContentLoaded', () => {
     settingUnroll.addEventListener('change', saveSettings);
     settingMetrics.addEventListener('change', saveSettings);
     settingDownload.addEventListener('change', saveSettings);
+    settingLinks.addEventListener('change', saveSettings);
+    settingWebhook.addEventListener('input', saveSettings);
 
     // Logger Class
     class Logger {
@@ -87,7 +104,9 @@ document.addEventListener('DOMContentLoaded', () => {
             FORMAT: settingFormat.value,
             UNROLL_THREAD: settingUnroll.checked,
             INCLUDE_METRICS: settingMetrics.checked,
-            DOWNLOAD: settingDownload.checked
+            DOWNLOAD: settingDownload.checked,
+            EXTRACT_LINKS: settingLinks.checked,
+            WEBHOOK_URL: settingWebhook.value.trim()
         };
 
         try {
@@ -132,6 +151,25 @@ document.addEventListener('DOMContentLoaded', () => {
             if (result.status === 'success') {
                 logger.log(`Data payload received: ${result.count} nodes.`);
 
+                // Second Brain Webhook POST
+                if (userConfig.WEBHOOK_URL) {
+                    try {
+                        logger.log('Transmitting to Second Brain Webhook...');
+                        fetch(userConfig.WEBHOOK_URL, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                source: 'X-Scraper',
+                                timestamp: new Date().toISOString(),
+                                dataCount: result.count,
+                                payload: result.rawData || result.data // pass object if available
+                            }),
+                            mode: 'no-cors' // Allow sending to Make/Zapier without CORS blocking
+                        }).catch(e => logger.log('Webhook warning (CORS is normal): ' + e, 'error'));
+                        logger.log('Webhook dispatched successfully.');
+                    } catch (e) { }
+                }
+
                 if (userConfig.DOWNLOAD) {
                     // Trigger Download
                     const blob = new Blob([result.data], { type: 'text/plain;charset=utf-8' });
@@ -144,12 +182,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     await chrome.downloads.download({ url: url, filename: filename, saveAs: true });
                     logger.log('File Download Sent to Browser API.');
-                    updateStatus(`Success! Saved ${result.count} tweets.`, 'success');
+                    updateStatus(`Success! Saved ${result.count} items.`, 'success');
                 } else {
                     // Copy to Clipboard (Fallback implemented in scraper.js normally, but we handle logic properly)
                     await navigator.clipboard.writeText(result.data);
                     logger.log('Copied directly to User Clipboard.');
-                    updateStatus(`Success! Copied ${result.count} tweets to clipboard.`, 'success');
+                    updateStatus(`Success! Copied ${result.count} items to clipboard.`, 'success');
                 }
 
                 scrapeBtn.disabled = false;

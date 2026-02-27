@@ -31,7 +31,10 @@ export async function atomicScrape(userConfig = {}) {
         // Helpers
         const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-        // 1. Identify Main Post ID from URL
+        // 1. Identify Context (Thread vs Bookmarks)
+        const isBookmarksMode = window.location.pathname.includes('/i/bookmarks');
+        log(`Context: ${isBookmarksMode ? 'Bookmarks Archive' : 'Thread Scrape'}`);
+
         const urlParts = window.location.pathname.split('/');
         const statusIndex = urlParts.indexOf('status');
         const mainTweetId = (statusIndex !== -1 && urlParts.length > statusIndex + 1) ? urlParts[statusIndex + 1] : null;
@@ -165,6 +168,17 @@ export async function atomicScrape(userConfig = {}) {
                     }
                 });
 
+                // Extract Links (Resource Harvester)
+                let extractedLinks = [];
+                if (config.EXTRACT_LINKS) {
+                    const anchors = article.querySelectorAll('[data-testid="tweetText"] a[href^="http"]');
+                    anchors.forEach(a => {
+                        if (!a.href.includes('twitter.com') && !a.href.includes('x.com')) {
+                            extractedLinks.push(a.href);
+                        }
+                    });
+                }
+
                 // Do not drop main tweet even if it's just media
                 if (!text && !article.querySelector('img') && tweetId !== mainTweetId) {
                     return null;
@@ -177,7 +191,8 @@ export async function atomicScrape(userConfig = {}) {
                     text: text || '[Media/Empty]',
                     isMain: tweetId === mainTweetId,
                     replyingTo,
-                    metrics
+                    metrics,
+                    links: extractedLinks
                 };
             } catch (e) {
                 console.error('[Scraper] Error processing tweet:', e);
@@ -187,98 +202,145 @@ export async function atomicScrape(userConfig = {}) {
 
         // 4. Process & Filter
         const allTweets = Array.from(tweetsMap.values());
+        let validTweets = [];
+        let mainPost = null;
 
-        // Find Main Post
-        let mainPost = allTweets.find(t => t.isMain);
-        if (!mainPost && allTweets.length > 0) {
-            mainPost = allTweets[0];
-            mainPostHandle = mainPost.handle;
-        }
-        if (!mainPost) {
-            return { status: 'error', message: 'No tweets found' };
-        }
-
-        // Filter Logic - Maintain Chronological DOM Order
-        const validTweets = [];
-        let currentSubCommentCount = 0;
-        let nonAuthorCount = 0;
-
-        for (let i = 0; i < allTweets.length; i++) {
-            const tweet = allTweets[i];
-
-            // Skip main post since we process it directly at output
-            if (tweet.id === mainPost.id) continue;
-
-            const isAuthor = tweet.handle === mainPostHandle;
-
-            // Determine level: L1 means direct reply toOP or author's own thread extension
-            let isLevel1 = false;
-            if (isAuthor) {
-                isLevel1 = true;
-            } else if (tweet.replyingTo.length === 0) {
-                isLevel1 = true;
-            } else if (tweet.replyingTo.length === 1 && tweet.replyingTo[0] === mainPostHandle) {
-                isLevel1 = true;
+        if (isBookmarksMode) {
+            // Bookmarks Mode Bypass: Everything is valid, no threading
+            validTweets = allTweets;
+            if (validTweets.length > 0) mainPost = validTweets[0];
+        } else {
+            // Find Main Post
+            mainPost = allTweets.find(t => t.isMain);
+            if (!mainPost && allTweets.length > 0) {
+                mainPost = allTweets[0];
+                mainPostHandle = mainPost.handle;
+            }
+            if (!mainPost) {
+                return { status: 'error', message: 'No tweets found' };
             }
 
-            // UNROLL feature: Ignore entire post if not author
-            if (config.UNROLL_THREAD && !isAuthor) {
-                continue;
-            }
+            // Filter Logic - Maintain Chronological DOM Order
+            let currentSubCommentCount = 0;
+            let nonAuthorCount = 0;
 
-            if (isLevel1) {
-                currentSubCommentCount = 0; // Starts a fresh group
-                validTweets.push(tweet);
-                if (!isAuthor) nonAuthorCount++;
-            } else {
-                // It is a sub-comment
-                if (currentSubCommentCount < config.MAX_SUB_COMMENTS) {
+            for (let i = 0; i < allTweets.length; i++) {
+                const tweet = allTweets[i];
+
+                // Skip main post since we process it directly at output
+                if (tweet.id === mainPost.id) continue;
+
+                const isAuthor = tweet.handle === mainPostHandle;
+
+                // Determine level: L1 means direct reply toOP or author's own thread extension
+                let isLevel1 = false;
+                if (isAuthor) {
+                    isLevel1 = true;
+                } else if (tweet.replyingTo.length === 0) {
+                    isLevel1 = true;
+                } else if (tweet.replyingTo.length === 1 && tweet.replyingTo[0] === mainPostHandle) {
+                    isLevel1 = true;
+                }
+
+                // UNROLL feature: Ignore entire post if not author
+                if (config.UNROLL_THREAD && !isAuthor) {
+                    continue;
+                }
+
+                if (isLevel1) {
+                    currentSubCommentCount = 0; // Starts a fresh group
                     validTweets.push(tweet);
-                    currentSubCommentCount++;
                     if (!isAuthor) nonAuthorCount++;
                 } else {
-                    // Maximum subcomments reached
+                    // It is a sub-comment
+                    if (currentSubCommentCount < config.MAX_SUB_COMMENTS) {
+                        validTweets.push(tweet);
+                        currentSubCommentCount++;
+                        if (!isAuthor) nonAuthorCount++;
+                    } else {
+                        // Maximum subcomments reached
+                    }
                 }
-            }
 
-            // Stop when we hit the total requested limit for non-author tweets
-            if (nonAuthorCount >= config.TARGET_COUNT) break;
+                // Stop when we hit the total requested limit for non-author tweets
+                if (nonAuthorCount >= config.TARGET_COUNT) break;
+            }
         }
 
         // 5. Format Output
         let output = '';
 
-        const renderMetrics = (m) => config.INCLUDE_METRICS ? `  [💡 ${m.likes} Likes | 🔁 ${m.reposts} Reposts | 💬 ${m.replies} Replies | 👁️ ${m.views} Views]` : '';
-        const renderMarkdownMetrics = (m) => config.INCLUDE_METRICS ? `\n> *${m.likes} Likes | ${m.reposts} Reposts | ${m.replies} Replies | ${m.views} Views*` : '';
+        const renderMetrics = (m) => config.INCLUDE_METRICS && m ? `  [💡 ${m.likes} Likes | 🔁 ${m.reposts} Reposts | 💬 ${m.replies} Replies | 👁️ ${m.views} Views]` : '';
+        const renderMarkdownMetrics = (m) => config.INCLUDE_METRICS && m ? `\n> *${m.likes} Likes | ${m.reposts} Reposts | ${m.replies} Replies | ${m.views} Views*` : '';
+
+        // Harvest Resources
+        let allResources = new Set();
+        if (config.EXTRACT_LINKS) {
+            if (mainPost && mainPost.links) mainPost.links.forEach(l => allResources.add(l));
+            validTweets.forEach(t => t.links && t.links.forEach(l => allResources.add(l)));
+        }
+
+        // We format bookmarks slightly differently (array format, no "main thread" distinction usually)
+        let listToExport = isBookmarksMode ? validTweets : validTweets;
 
         if (config.FORMAT === 'json') {
-            const dataToExport = { mainPost, replies: validTweets };
+            const dataToExport = isBookmarksMode
+                ? { archiveType: 'Bookmarks', items: listToExport }
+                : { archiveType: 'Thread', mainPost, replies: validTweets };
+
             if (!config.INCLUDE_METRICS) {
-                delete dataToExport.mainPost.metrics;
-                dataToExport.replies.forEach(t => delete t.metrics);
+                if (dataToExport.mainPost) delete dataToExport.mainPost.metrics;
+                listToExport.forEach(t => delete t.metrics);
+            }
+            if (config.EXTRACT_LINKS && allResources.size > 0) {
+                dataToExport.harvestedResources = Array.from(allResources);
             }
             output = JSON.stringify(dataToExport, null, 2);
         } else if (config.FORMAT === 'markdown') {
-            output = `# Thread by ${mainPost.handle}\n\n`;
-            output += `**${mainPost.handle}** (${mainPost.timestamp}):\n${mainPost.text}${renderMarkdownMetrics(mainPost.metrics)}\n\n`;
-
-            if (validTweets.length > 0) {
-                output += `## ${config.UNROLL_THREAD ? 'Thread Breakdown' : 'Replies'} (${validTweets.length})\n\n`;
-                validTweets.forEach((t) => {
-                    output += `> **${t.handle}**: ${t.text.replace(/\n/g, '\n> ')}${renderMarkdownMetrics(t.metrics)}\n\n`;
+            if (isBookmarksMode) {
+                output = `# 🔖 Saved Bookmarks Archive (${listToExport.length} entries)\n\n`;
+                listToExport.forEach((t) => {
+                    output += `> **${t.handle}** (${t.timestamp}): ${t.text.replace(/\n/g, '\n> ')}${renderMarkdownMetrics(t.metrics)}\n\n`;
                 });
+            } else {
+                output = `# Thread by ${mainPost.handle}\n\n`;
+                output += `**${mainPost.handle}** (${mainPost.timestamp}):\n${mainPost.text}${renderMarkdownMetrics(mainPost.metrics)}\n\n`;
+
+                if (validTweets.length > 0) {
+                    output += `## ${config.UNROLL_THREAD ? 'Thread Breakdown' : 'Replies'} (${validTweets.length})\n\n`;
+                    validTweets.forEach((t) => {
+                        output += `> **${t.handle}**: ${t.text.replace(/\n/g, '\n> ')}${renderMarkdownMetrics(t.metrics)}\n\n`;
+                    });
+                }
+            }
+
+            if (config.EXTRACT_LINKS && allResources.size > 0) {
+                output += `\n---\n## 🔗 Harvested Resources (${allResources.size})\n\n`;
+                Array.from(allResources).forEach(l => output += `- ${l}\n`);
             }
         } else {
-            output = `[Main Post]\n${mainPost.handle} (${mainPost.timestamp}):\n${mainPost.text}\n${renderMetrics(mainPost.metrics)}\n\n`;
-            if (validTweets.length > 0) {
-                output += `[${config.UNROLL_THREAD ? 'Thread Extension' : 'Replies'}] (${validTweets.length})\n`;
-                validTweets.forEach((t, i) => {
-                    output += `${i + 1}. ${t.handle}: ${t.text}\n${renderMetrics(t.metrics)}\n`;
+            if (isBookmarksMode) {
+                output = `[Bookmarks Archive]\nCollected: ${listToExport.length}\n\n`;
+                listToExport.forEach((t, i) => {
+                    output += `${i + 1}. [${t.timestamp}] ${t.handle}: ${t.text}\n${renderMetrics(t.metrics)}\n\n`;
                 });
+            } else {
+                output = `[Main Post]\n${mainPost.handle} (${mainPost.timestamp}):\n${mainPost.text}\n${renderMetrics(mainPost.metrics)}\n\n`;
+                if (validTweets.length > 0) {
+                    output += `[${config.UNROLL_THREAD ? 'Thread Extension' : 'Replies'}] (${validTweets.length})\n`;
+                    validTweets.forEach((t, i) => {
+                        output += `${i + 1}. ${t.handle}: ${t.text}\n${renderMetrics(t.metrics)}\n`;
+                    });
+                }
+            }
+
+            if (config.EXTRACT_LINKS && allResources.size > 0) {
+                output += `\n[Harvested Resources]\n`;
+                Array.from(allResources).forEach(l => output += `- ${l}\n`);
             }
         }
 
-        return { status: 'success', data: output, count: validTweets.length + 1 };
+        return { status: 'success', data: output, count: validTweets.length + (isBookmarksMode ? 0 : 1) };
 
     } catch (err) {
         console.error('[Scraper] Critical error:', err);
