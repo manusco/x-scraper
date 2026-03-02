@@ -45,6 +45,15 @@ export async function atomicScrape(userConfig = {}) {
         let noNewTweetsCount = 0;
         let mainPostHandle = null;
 
+        // 2.5 Wait for DOM Hydration (Wait for at least one tweet to render)
+        let hydrationRetries = 0;
+        while (document.querySelectorAll('article[data-testid="tweet"]').length === 0 && hydrationRetries < 5) {
+            log('Waiting for React DOM to hydrate tweets...');
+            emitProgress('Waiting for page to load...');
+            await sleep(1000);
+            hydrationRetries++;
+        }
+
         // 3. Scraping Loop
         while (tweetsMap.size < (SCRAPER_CONFIG.TARGET_COUNT + SCRAPER_CONFIG.TARGET_BUFFER) &&
             noNewTweetsCount < SCRAPER_CONFIG.MAX_NO_NEW_TWEETS) {
@@ -179,8 +188,8 @@ export async function atomicScrape(userConfig = {}) {
                     });
                 }
 
-                // Do not drop main tweet even if it's just media
-                if (!text && !article.querySelector('img') && tweetId !== mainTweetId) {
+                // If absolutely no meaning can be extracted, skip it to avoid polluting data
+                if (!text && !article.querySelector('img') && !article.querySelector('video') && handle === '@unknown') {
                     return null;
                 }
 
