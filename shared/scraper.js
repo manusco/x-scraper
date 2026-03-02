@@ -1,7 +1,5 @@
-// Shared Scraper Logic Module
-// This module contains the core scraping functionality used by both popup and content script
+// shared/scraper.js
 
-// Configuration Constants
 export const SCRAPER_CONFIG = {
     TARGET_COUNT: 100,
     TARGET_BUFFER: 50,
@@ -11,131 +9,42 @@ export const SCRAPER_CONFIG = {
     EXPAND_WAIT_MS: 500
 };
 
-/**
- * Main scraping function - executes the complete thread scraping logic
- * @returns {Promise<{status: string, data?: string, count?: number, message?: string}>}
- */
-export async function atomicScrape(userConfig = {}) {
-    const config = { ...SCRAPER_CONFIG, ...userConfig };
+// --- Helper Functions ---
 
-    const log = (msg) => console.log(`[Atomic Scraper] ${msg}`);
-    log('Starting v0.2.0 Scraper...');
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const getText = (el) => (el ? (el.innerText || el.textContent || '') : '');
 
-    const emitProgress = (msg) => {
-        try {
-            chrome.runtime.sendMessage({ action: 'progress', text: msg }).catch(() => {
-                // Ignore errors if port is closed
-            });
-        } catch (e) {
-            // Ignore errors if context is invalidated
-        }
-    };
+function getContext() {
+    let isBookmarksMode = false;
+    let mainTweetId = null;
 
-    try {
-        // Helpers
-        const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-
-        // 1. Identify Context (Thread vs Bookmarks)
-        const isBookmarksMode = window.location.pathname.includes('/i/bookmarks');
-        log(`Context: ${isBookmarksMode ? 'Bookmarks Archive' : 'Thread Scrape'}`);
-
+    if (typeof window !== 'undefined' && window.location) {
+        isBookmarksMode = window.location.pathname.includes('/i/bookmarks');
         const urlParts = window.location.pathname.split('/');
         const statusIndex = urlParts.indexOf('status');
-        const mainTweetId = (statusIndex !== -1 && urlParts.length > statusIndex + 1) ? urlParts[statusIndex + 1] : null;
-        log(`Target Tweet ID: ${mainTweetId}`);
-
-        // 2. Data Collection
-        const tweetsMap = new Map(); // ID -> Tweet Object
-        let noNewTweetsCount = 0;
-        let mainPostHandle = null;
-
-        // 2.5 Wait for DOM Hydration (Wait for at least one tweet to render)
-        let hydrationRetries = 0;
-        while (document.querySelectorAll('article[data-testid="tweet"]').length === 0 && hydrationRetries < 5) {
-            log('Waiting for React DOM to hydrate tweets...');
-            emitProgress('Waiting for page to load...');
-            await sleep(1000);
-            hydrationRetries++;
+        if (statusIndex !== -1 && urlParts.length > statusIndex + 1) {
+            mainTweetId = urlParts[statusIndex + 1];
         }
-
-        // 3. Scraping Loop
-        while (tweetsMap.size < (SCRAPER_CONFIG.TARGET_COUNT + SCRAPER_CONFIG.TARGET_BUFFER) &&
-            noNewTweetsCount < SCRAPER_CONFIG.MAX_NO_NEW_TWEETS) {
-
-            // A. Expand "Show More" buttons
-            const showMoreButtons = document.querySelectorAll('[data-testid="tweet-text-show-more-link"]');
-            for (const btn of showMoreButtons) {
-                btn.click();
-            }
-            if (showMoreButtons.length > 0) await sleep(SCRAPER_CONFIG.EXPAND_WAIT_MS);
-
-            // B. Scrape Visible Tweets
-            const cells = document.querySelectorAll('div[data-testid="cellInnerDiv"]');
-            let newFound = 0;
-            let hitBoundary = false;
-
-            for (const cell of cells) {
-                if (hitBoundary) continue;
-
-                const textContext = cell.innerText || cell.textContent || '';
-                // Check if this cell is a boundary indicator
-                if (/^(Discover more|More posts|More Tweets)$/i.test(textContext.trim()) && !cell.querySelector('article')) {
-                    log('Hit boundary: ' + textContext.trim());
-                    hitBoundary = true;
-                    continue;
-                }
-
-                const article = cell.querySelector('article[data-testid="tweet"]');
-                if (article) {
-                    const tweet = extractTweetData(article, mainTweetId, config);
-                    if (tweet && !tweetsMap.has(tweet.id)) {
-                        tweetsMap.set(tweet.id, tweet);
-                        if (tweet.id === mainTweetId) mainPostHandle = tweet.handle;
-                        newFound++;
-                    }
-                }
-            }
-
-            log(`Scraped cycle: ${tweetsMap.size} total (+${newFound} new)`);
-            emitProgress(`Scraping... (${tweetsMap.size} tweets gathered)`);
-            noNewTweetsCount = (newFound === 0) ? noNewTweetsCount + 1 : 0;
-
-            if (hitBoundary) {
-                log('Boundary reached, stopping scroll.');
-                break;
-            }
-
-            if (tweetsMap.size >= config.TARGET_COUNT * 2) break;
-
-            // C. Scroll
-            window.scrollTo(0, document.body.scrollHeight);
-            await sleep(config.SCROLL_WAIT_MS);
-        }
-
     }
-
-    return { status: 'success', data: output, count: validTweets.length + (isBookmarksMode ? 0 : 1) };
+    return { isBookmarksMode, mainTweetId };
 }
 
-/**
- * Extract structured data from a tweet article element
- */
 function extractTweetData(article, mainTweetId, config) {
     try {
         const textElements = article.querySelectorAll('[data-testid="tweetText"]');
-        let text = textElements.length > 0 ? textElements[0].innerText : '';
+        let text = textElements.length > 0 ? getText(textElements[0]) : '';
         if (textElements.length > 1) {
-            text += '\n[Quoted]: ' + textElements[1].innerText;
+            text += '\n[Quoted]: ' + getText(textElements[1]);
         }
 
         const userElement = article.querySelector('[data-testid="User-Name"]');
-        const handleMatch = userElement ? userElement.innerText.match(/@[a-zA-Z0-9_]+/) : null;
+        const handleMatch = userElement ? getText(userElement).match(/@[a-zA-Z0-9_]+/) : null;
         const handle = handleMatch ? handleMatch[0] : '@unknown';
 
         const timeElement = article.querySelector('time');
         const timestamp = timeElement ? timeElement.getAttribute('datetime') : 'Unknown Time';
 
-        const replyingTo = (article.innerText.match(/Replying to\s+(@[a-zA-Z0-9_]+)/g) || [])
+        const replyingTo = (getText(article).match(/Replying to\s+(@[a-zA-Z0-9_]+)/g) || [])
             .map(s => s.replace('Replying to ', '').trim());
 
         let tweetId = null;
@@ -197,8 +106,9 @@ function extractTweetData(article, mainTweetId, config) {
             });
         }
 
-        // If absolutely no meaning can be extracted, skip it to avoid polluting data
-        if (!text && !article.querySelector('img') && !article.querySelector('video') && handle === '@unknown') {
+        // If absolutely no meaning can be extracted, skip it to avoid polluting data.
+        // Don't drop tweets with media or if we know it's our main tweet.
+        if (!text && imageElements.length === 0 && tweetId !== mainTweetId && handle === '@unknown') {
             return null;
         }
 
@@ -214,43 +124,43 @@ function extractTweetData(article, mainTweetId, config) {
         };
     } catch (e) {
         console.error('[Scraper] Error processing tweet:', e);
-        return null;
+        return null; // Skip invalid elements rather than crashing
     }
 }
 
-// 4. Process & Filter
-const allTweets = Array.from(tweetsMap.values());
-let validTweets = [];
-let mainPost = null;
+function processAndFilterTweets(tweetsMap, isBookmarksMode, mainTweetId, config) {
+    const allTweets = Array.from(tweetsMap.values());
+    let validTweets = [];
+    let mainPost = null;
+    let mainPostHandle = null;
 
-if (isBookmarksMode) {
-    // Bookmarks Mode Bypass: Everything is valid, no threading
-    validTweets = allTweets;
-    if (validTweets.length > 0) mainPost = validTweets[0];
-} else {
-    // Find Main Post
+    if (isBookmarksMode) {
+        validTweets = allTweets;
+        if (validTweets.length > 0) mainPost = validTweets[0];
+        return { mainPost, validTweets };
+    }
+
     mainPost = allTweets.find(t => t.isMain);
     if (!mainPost && allTweets.length > 0) {
         mainPost = allTweets[0];
-        mainPostHandle = mainPost.handle;
-    }
-    if (!mainPost) {
-        return { status: 'error', message: 'No tweets found' };
     }
 
-    // Filter Logic - Maintain Chronological DOM Order
+    if (!mainPost) {
+        throw new Error('No tweets found during processing.');
+    }
+
+    mainPostHandle = mainPost.handle;
+
     let currentSubCommentCount = 0;
     let nonAuthorCount = 0;
 
     for (let i = 0; i < allTweets.length; i++) {
         const tweet = allTweets[i];
 
-        // Skip main post since we process it directly at output
         if (tweet.id === mainPost.id) continue;
 
         const isAuthor = tweet.handle === mainPostHandle;
 
-        // Determine level: L1 means direct reply toOP or author's own thread extension
         let isLevel1 = false;
         if (isAuthor) {
             isLevel1 = true;
@@ -260,104 +170,201 @@ if (isBookmarksMode) {
             isLevel1 = true;
         }
 
-        // UNROLL feature: Ignore entire post if not author
         if (config.UNROLL_THREAD && !isAuthor) {
             continue;
         }
 
         if (isLevel1) {
-            currentSubCommentCount = 0; // Starts a fresh group
+            currentSubCommentCount = 0;
             validTweets.push(tweet);
             if (!isAuthor) nonAuthorCount++;
         } else {
-            // It is a sub-comment
             if (currentSubCommentCount < config.MAX_SUB_COMMENTS) {
                 validTweets.push(tweet);
                 currentSubCommentCount++;
                 if (!isAuthor) nonAuthorCount++;
-            } else {
-                // Maximum subcomments reached
             }
         }
 
-        // Stop when we hit the total requested limit for non-author tweets
         if (nonAuthorCount >= config.TARGET_COUNT) break;
     }
+
+    return { mainPost, validTweets };
 }
 
-// 5. Format Output
-let output = '';
+function formatOutput(mainPost, validTweets, isBookmarksMode, config) {
+    let output = '';
+    const renderMetrics = (m) => config.INCLUDE_METRICS && m ? `  [💡 ${m.likes} Likes | 🔁 ${m.reposts} Reposts | 💬 ${m.replies} Replies | 👁️ ${m.views} Views]` : '';
+    const renderMarkdownMetrics = (m) => config.INCLUDE_METRICS && m ? `\n> *${m.likes} Likes | ${m.reposts} Reposts | ${m.replies} Replies | ${m.views} Views*` : '';
 
-const renderMetrics = (m) => config.INCLUDE_METRICS && m ? `  [💡 ${m.likes} Likes | 🔁 ${m.reposts} Reposts | 💬 ${m.replies} Replies | 👁️ ${m.views} Views]` : '';
-const renderMarkdownMetrics = (m) => config.INCLUDE_METRICS && m ? `\n> *${m.likes} Likes | ${m.reposts} Reposts | ${m.replies} Replies | ${m.views} Views*` : '';
-
-// Harvest Resources
-let allResources = new Set();
-if (config.EXTRACT_LINKS) {
-    if (mainPost && mainPost.links) mainPost.links.forEach(l => allResources.add(l));
-    validTweets.forEach(t => t.links && t.links.forEach(l => allResources.add(l)));
-}
-
-// We format bookmarks slightly differently (array format, no "main thread" distinction usually)
-let listToExport = isBookmarksMode ? validTweets : validTweets;
-
-if (config.FORMAT === 'json') {
-    const dataToExport = isBookmarksMode
-        ? { archiveType: 'Bookmarks', items: listToExport }
-        : { archiveType: 'Thread', mainPost, replies: validTweets };
-
-    if (!config.INCLUDE_METRICS) {
-        if (dataToExport.mainPost) delete dataToExport.mainPost.metrics;
-        listToExport.forEach(t => delete t.metrics);
+    let allResources = new Set();
+    if (config.EXTRACT_LINKS) {
+        if (mainPost && mainPost.links) mainPost.links.forEach(l => allResources.add(l));
+        validTweets.forEach(t => t.links && t.links.forEach(l => allResources.add(l)));
     }
-    if (config.EXTRACT_LINKS && allResources.size > 0) {
-        dataToExport.harvestedResources = Array.from(allResources);
-    }
-    output = JSON.stringify(dataToExport, null, 2);
-} else if (config.FORMAT === 'markdown') {
-    if (isBookmarksMode) {
-        output = `# 🔖 Saved Bookmarks Archive (${listToExport.length} entries)\n\n`;
-        listToExport.forEach((t) => {
-            output += `> **${t.handle}** (${t.timestamp}): ${t.text.replace(/\n/g, '\n> ')}${renderMarkdownMetrics(t.metrics)}\n\n`;
-        });
-    } else {
-        output = `# Thread by ${mainPost.handle}\n\n`;
-        output += `**${mainPost.handle}** (${mainPost.timestamp}):\n${mainPost.text}${renderMarkdownMetrics(mainPost.metrics)}\n\n`;
 
-        if (validTweets.length > 0) {
-            output += `## ${config.UNROLL_THREAD ? 'Thread Breakdown' : 'Replies'} (${validTweets.length})\n\n`;
-            validTweets.forEach((t) => {
-                output += `> **${t.handle}**: ${t.text.replace(/\n/g, '\n> ')}${renderMarkdownMetrics(t.metrics)}\n\n`;
+    let listToExport = isBookmarksMode ? validTweets : validTweets;
+
+    if (config.FORMAT === 'json') {
+        const dataToExport = isBookmarksMode
+            ? { archiveType: 'Bookmarks', items: listToExport }
+            : { archiveType: 'Thread', mainPost, replies: validTweets };
+
+        if (!config.INCLUDE_METRICS) {
+            if (dataToExport.mainPost) delete dataToExport.mainPost.metrics;
+            listToExport.forEach(t => delete t.metrics);
+        }
+        if (config.EXTRACT_LINKS && allResources.size > 0) {
+            dataToExport.harvestedResources = Array.from(allResources);
+        }
+        output = JSON.stringify(dataToExport, null, 2);
+    } else if (config.FORMAT === 'markdown') {
+        if (isBookmarksMode) {
+            output = `# 🔖 Saved Bookmarks Archive (${listToExport.length} entries)\n\n`;
+            listToExport.forEach((t) => {
+                output += `> **${t.handle}** (${t.timestamp}): ${t.text.replace(/\n/g, '\n> ')}${renderMarkdownMetrics(t.metrics)}\n\n`;
             });
+        } else {
+            output = `# Thread by ${mainPost.handle}\n\n`;
+            output += `**${mainPost.handle}** (${mainPost.timestamp}):\n${mainPost.text}${renderMarkdownMetrics(mainPost.metrics)}\n\n`;
+
+            if (validTweets.length > 0) {
+                output += `## ${config.UNROLL_THREAD ? 'Thread Breakdown' : 'Replies'} (${validTweets.length})\n\n`;
+                validTweets.forEach((t) => {
+                    output += `> **${t.handle}**: ${t.text.replace(/\n/g, '\n> ')}${renderMarkdownMetrics(t.metrics)}\n\n`;
+                });
+            }
+        }
+
+        if (config.EXTRACT_LINKS && allResources.size > 0) {
+            output += `\n---\n## 🔗 Harvested Resources (${allResources.size})\n\n`;
+            Array.from(allResources).forEach(l => output += `- ${l}\n`);
+        }
+    } else {
+        if (isBookmarksMode) {
+            output = `[Bookmarks Archive]\nCollected: ${listToExport.length}\n\n`;
+            listToExport.forEach((t, i) => {
+                output += `${i + 1}. [${t.timestamp}] ${t.handle}: ${t.text}\n${renderMetrics(t.metrics)}\n\n`;
+            });
+        } else {
+            output = `[Main Post]\n${mainPost.handle} (${mainPost.timestamp}):\n${mainPost.text}\n${renderMetrics(mainPost.metrics)}\n\n`;
+            if (validTweets.length > 0) {
+                output += `[${config.UNROLL_THREAD ? 'Thread Extension' : 'Replies'}] (${validTweets.length})\n`;
+                validTweets.forEach((t, i) => {
+                    output += `${i + 1}. ${t.handle}: ${t.text}\n${renderMetrics(t.metrics)}\n`;
+                });
+            }
+        }
+
+        if (config.EXTRACT_LINKS && allResources.size > 0) {
+            output += '\n[Harvested Resources]\n';
+            Array.from(allResources).forEach(l => output += `- ${l}\n`);
         }
     }
 
-    if (config.EXTRACT_LINKS && allResources.size > 0) {
-        output += `\n---\n## 🔗 Harvested Resources (${allResources.size})\n\n`;
-        Array.from(allResources).forEach(l => output += `- ${l}\n`);
-    }
-} else {
-    if (isBookmarksMode) {
-        output = `[Bookmarks Archive]\nCollected: ${listToExport.length}\n\n`;
-        listToExport.forEach((t, i) => {
-            output += `${i + 1}. [${t.timestamp}] ${t.handle}: ${t.text}\n${renderMetrics(t.metrics)}\n\n`;
-        });
-    } else {
-        output = `[Main Post]\n${mainPost.handle} (${mainPost.timestamp}):\n${mainPost.text}\n${renderMetrics(mainPost.metrics)}\n\n`;
-        if (validTweets.length > 0) {
-            output += `[${config.UNROLL_THREAD ? 'Thread Extension' : 'Replies'}] (${validTweets.length})\n`;
-            validTweets.forEach((t, i) => {
-                output += `${i + 1}. ${t.handle}: ${t.text}\n${renderMetrics(t.metrics)}\n`;
-            });
-        }
-    }
-
-    if (config.EXTRACT_LINKS && allResources.size > 0) {
-        output += '\n[Harvested Resources]\n';
-        Array.from(allResources).forEach(l => output += `- ${l}\n`);
-    }
-} catch (err) {
-    console.error('[Scraper] Critical error:', err);
-    return { status: 'error', message: err.toString() };
+    return output;
 }
+
+// --- Main Scraper Engine ---
+
+export async function atomicScrape(userConfig = {}) {
+    const config = { ...SCRAPER_CONFIG, ...userConfig };
+    const log = (msg) => console.log(`[Atomic Scraper] ${msg}`);
+    const emitProgress = (msg) => {
+        try {
+            if (typeof chrome !== 'undefined' && chrome.runtime) {
+                chrome.runtime.sendMessage({ action: 'progress', text: msg }).catch(() => { });
+            }
+        } catch (e) {
+            // Ignore if disconnected
+        }
+    };
+
+    log('Engaging v0.2.0 Scraper Engine...');
+
+    try {
+        const { isBookmarksMode, mainTweetId } = getContext();
+        log(`Context: ${isBookmarksMode ? 'Bookmarks Archive' : 'Thread Scrape'}`);
+        log(`Target Tweet ID: ${mainTweetId}`);
+
+        const tweetsMap = new Map();
+        let noNewTweetsCount = 0;
+
+        // Ensure DOM has hydrated tweets before we start scrolling
+        let hydrationRetries = 0;
+        while (document.querySelectorAll('article[data-testid="tweet"]').length === 0 && hydrationRetries < 5) {
+            log('Waiting for React DOM to hydrate tweets...');
+            emitProgress('Waiting for page to load...');
+            await sleep(1000);
+            hydrationRetries++;
+        }
+
+        // Scraping Loop
+        while (tweetsMap.size < (config.TARGET_COUNT + config.TARGET_BUFFER) && noNewTweetsCount < config.MAX_NO_NEW_TWEETS) {
+
+            // Expand "Show More"
+            const showMoreButtons = document.querySelectorAll('[data-testid="tweet-text-show-more-link"]');
+            for (const btn of showMoreButtons) {
+                btn.click();
+            }
+            if (showMoreButtons.length > 0) await sleep(config.EXPAND_WAIT_MS);
+
+            // Scrape Visible
+            const cells = document.querySelectorAll('div[data-testid="cellInnerDiv"]');
+            let newFound = 0;
+            let hitBoundary = false;
+
+            for (const cell of cells) {
+                if (hitBoundary) continue;
+
+                const textContext = getText(cell);
+                if (/^(Discover more|More posts|More Tweets)$/i.test(textContext.trim()) && !cell.querySelector('article')) {
+                    log('Hit boundary: ' + textContext.trim());
+                    hitBoundary = true;
+                    continue;
+                }
+
+                const article = cell.querySelector('article[data-testid="tweet"]');
+                if (article) {
+                    const tweet = extractTweetData(article, mainTweetId, config);
+                    if (tweet && !tweetsMap.has(tweet.id)) {
+                        tweetsMap.set(tweet.id, tweet);
+                        newFound++;
+                    }
+                }
+            }
+
+            log(`Scraped cycle: ${tweetsMap.size} total (+${newFound} new)`);
+            emitProgress(`Scraping... (${tweetsMap.size} tweets gathered)`);
+            noNewTweetsCount = (newFound === 0) ? noNewTweetsCount + 1 : 0;
+
+            if (hitBoundary) {
+                log('Boundary reached, stopping scroll.');
+                break;
+            }
+
+            if (tweetsMap.size >= config.TARGET_COUNT * 2) break;
+
+            window.scrollTo(0, document.body.scrollHeight);
+            await sleep(config.SCROLL_WAIT_MS);
+        }
+
+        if (tweetsMap.size === 0) {
+            return { status: 'error', message: 'No tweets found. Make sure you are on a valid X thread or bookmarks page or give it a second to load.' };
+        }
+
+        const { mainPost, validTweets } = processAndFilterTweets(tweetsMap, isBookmarksMode, mainTweetId, config);
+        const output = formatOutput(mainPost, validTweets, isBookmarksMode, config);
+
+        return {
+            status: 'success',
+            data: output,
+            count: validTweets.length + (isBookmarksMode ? 0 : 1),
+            rawData: Array.from(tweetsMap.values())
+        };
+
+    } catch (err) {
+        console.error('[Scraper] Critical error:', err);
+        return { status: 'error', message: err.toString() };
+    }
 }

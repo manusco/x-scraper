@@ -52,7 +52,7 @@ body {
     background: #000;
     border: 1px solid #2f3336;
     border-radius: 12px;
-    margin-bottom: 24px;
+    margin-bottom: 16px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
     overflow: hidden;
 }
@@ -144,6 +144,48 @@ body {
 .sleek-text:focus {
     border-color: #1d9bf0;
     background-color: #111;
+}
+
+/* Advanced Toggle Button */
+.advanced-toggle-btn {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    background: none;
+    border: 1px solid #2f3336;
+    border-radius: 8px;
+    color: #71767b;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 10px 16px;
+    cursor: pointer;
+    font-family: inherit;
+    margin-bottom: 16px;
+    transition: all 0.2s ease;
+}
+
+.advanced-toggle-btn:hover {
+    color: #eff3f4;
+    border-color: #1d9bf0;
+    background-color: rgba(29, 155, 240, 0.05);
+}
+
+.chevron {
+    font-size: 10px;
+    transition: transform 0.25s ease;
+}
+
+.chevron.open {
+    transform: rotate(180deg);
+}
+
+.advanced-card {
+    margin-bottom: 16px;
+}
+
+.advanced-card.hidden {
+    display: none;
 }
 
 .bookmarks-banner {
