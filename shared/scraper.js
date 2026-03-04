@@ -31,10 +31,32 @@ function getContext() {
 
 function extractTweetData(article, mainTweetId, config) {
     try {
-        const textElements = article.querySelectorAll('[data-testid="tweetText"]');
-        let text = textElements.length > 0 ? getText(textElements[0]) : '';
-        if (textElements.length > 1) {
-            text += '\n[Quoted]: ' + getText(textElements[1]);
+        const isXArticle = article.getAttribute('data-testid') === 'twitterArticleReadView';
+
+        let text = '';
+        if (isXArticle) {
+            const titleEls = article.querySelectorAll('[data-testid="twitter-article-title"]');
+            if (titleEls.length > 0) text += `# ${getText(titleEls[0])}\n\n`;
+
+            const textBlocks = article.querySelectorAll('[data-testid="longformRichTextComponent"]');
+            if (textBlocks.length > 0) {
+                textBlocks.forEach(el => text += getText(el) + '\n\n');
+            } else {
+                const richTextEls = article.querySelectorAll('[data-testid="twitterArticleRichTextView"]');
+                if (richTextEls.length > 0) {
+                    richTextEls.forEach(el => text += getText(el) + '\n\n');
+                } else {
+                    const fallbackText = article.querySelector('[data-testid="tweetText"]');
+                    if (fallbackText) text += getText(fallbackText);
+                }
+            }
+            text = text.trim();
+        } else {
+            const textElements = article.querySelectorAll('[data-testid="tweetText"]');
+            text = textElements.length > 0 ? getText(textElements[0]) : '';
+            if (textElements.length > 1) {
+                text += '\n[Quoted]: ' + getText(textElements[1]);
+            }
         }
 
         const userElement = article.querySelector('[data-testid="User-Name"]');
@@ -60,23 +82,30 @@ function extractTweetData(article, mainTweetId, config) {
 
         // 2. Identify the main tweet reliably
         if (!tweetId && mainTweetId) {
-            const links = article.querySelectorAll('a[href*="/status/"]');
-            for (const link of links) {
-                const match = link.href.match(/status\/(\d+)/);
-                if (match && match[1] === mainTweetId) {
-                    tweetId = match[1];
-                    break;
-                }
-            }
-            if (!tweetId) {
+            if (isXArticle) {
                 tweetId = mainTweetId;
+            } else {
+                const links = article.querySelectorAll('a[href*="/status/"]');
+                for (const link of links) {
+                    const match = link.href.match(/status\/(\d+)/);
+                    if (match && match[1] === mainTweetId) {
+                        tweetId = match[1];
+                        break;
+                    }
+                }
+                if (!tweetId) {
+                    tweetId = mainTweetId;
+                }
             }
         }
 
         if (!tweetId) tweetId = 'unknown_' + Math.random();
 
         // Extra check for image media / visual awareness
-        const imageElements = article.querySelectorAll('div[data-testid="tweetPhoto"] img, div[data-testid="videoComponent"] video');
+        const imageElements = isXArticle
+            ? article.querySelectorAll('img, video')
+            : article.querySelectorAll('div[data-testid="tweetPhoto"] img, div[data-testid="videoComponent"] video');
+
         imageElements.forEach((img, index) => {
             const alt = img.getAttribute('alt');
             text += `\n[Media${imageElements.length > 1 ? ` ${(index + 1)}` : ''}: ${alt ? alt : 'Visual Attachment'}]`;
@@ -290,9 +319,9 @@ export async function atomicScrape(userConfig = {}) {
         const tweetsMap = new Map();
         let noNewTweetsCount = 0;
 
-        // Ensure DOM has hydrated tweets before we start scrolling
+        // Ensure DOM has hydrated tweets OR articles before we start scrolling
         let hydrationRetries = 0;
-        while (document.querySelectorAll('article[data-testid="tweet"]').length === 0 && hydrationRetries < 5) {
+        while (document.querySelectorAll('article[data-testid="tweet"], [data-testid="twitterArticleReadView"]').length === 0 && hydrationRetries < 5) {
             log('Waiting for React DOM to hydrate tweets...');
             emitProgress('Waiting for page to load...');
             await sleep(1000);
@@ -310,7 +339,7 @@ export async function atomicScrape(userConfig = {}) {
             if (showMoreButtons.length > 0) await sleep(config.EXPAND_WAIT_MS);
 
             // Scrape Visible
-            const cells = document.querySelectorAll('div[data-testid="cellInnerDiv"]');
+            const cells = document.querySelectorAll('div[data-testid="cellInnerDiv"], [data-testid="twitterArticleReadView"]');
             let newFound = 0;
             let hitBoundary = false;
 
@@ -324,7 +353,10 @@ export async function atomicScrape(userConfig = {}) {
                     continue;
                 }
 
-                const article = cell.querySelector('article[data-testid="tweet"]');
+                const article = cell.getAttribute('data-testid') === 'twitterArticleReadView'
+                    ? cell
+                    : cell.querySelector('article[data-testid="tweet"]');
+
                 if (article) {
                     const tweet = extractTweetData(article, mainTweetId, config);
                     if (tweet && !tweetsMap.has(tweet.id)) {
