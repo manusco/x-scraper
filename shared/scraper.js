@@ -1,9 +1,9 @@
 // shared/scraper.js
 
 export const SCRAPER_CONFIG = {
-    TARGET_COUNT: 100,
-    TARGET_BUFFER: 50,
-    MAX_NO_NEW_TWEETS: 3,
+    TARGET_COUNT: 1000,
+    TARGET_BUFFER: 200,
+    MAX_NO_NEW_TWEETS: 8,
     MAX_SUB_COMMENTS: 5,
     SCROLL_WAIT_MS: 1500,
     EXPAND_WAIT_MS: 500
@@ -31,27 +31,48 @@ function getContext() {
 
 function extractTweetData(article, mainTweetId, config) {
     try {
-        const isXArticle = article.getAttribute('data-testid') === 'twitterArticleReadView';
+        // Detect whether this element is an X Article (long-form post)
+        // Articles can be either a standalone container OR embedded inside a regular tweet
+        const isStandaloneArticle = article.getAttribute('data-testid') === 'twitterArticleReadView';
+        const embeddedArticle = !isStandaloneArticle ? article.querySelector('[data-testid="twitterArticleReadView"]') : null;
+        const isXArticle = isStandaloneArticle || embeddedArticle !== null;
+        const articleRoot = isStandaloneArticle ? article : (embeddedArticle || article);
 
         let text = '';
         if (isXArticle) {
-            const titleEls = article.querySelectorAll('[data-testid="twitter-article-title"]');
-            if (titleEls.length > 0) text += `# ${getText(titleEls[0])}\n\n`;
+            // --- X Article extraction (layered fallback) ---
+            // 1. Try to get the article title
+            const titleEl = articleRoot.querySelector('[data-testid="twitter-article-title"]');
+            if (titleEl) text += `# ${getText(titleEl)}\n\n`;
 
-            const textBlocks = article.querySelectorAll('[data-testid="longformRichTextComponent"]');
-            if (textBlocks.length > 0) {
-                textBlocks.forEach(el => text += getText(el) + '\n\n');
+            // 2. Try longformRichTextComponent blocks (individual paragraphs)
+            const longformBlocks = articleRoot.querySelectorAll('[data-testid="longformRichTextComponent"]');
+            if (longformBlocks.length > 0) {
+                longformBlocks.forEach(el => text += getText(el) + '\n\n');
             } else {
-                const richTextEls = article.querySelectorAll('[data-testid="twitterArticleRichTextView"]');
-                if (richTextEls.length > 0) {
-                    richTextEls.forEach(el => text += getText(el) + '\n\n');
+                // 3. Try the rich text view container
+                const richTextView = articleRoot.querySelector('[data-testid="twitterArticleRichTextView"]');
+                if (richTextView) {
+                    text += getText(richTextView) + '\n\n';
                 } else {
-                    const fallbackText = article.querySelector('[data-testid="tweetText"]');
-                    if (fallbackText) text += getText(fallbackText);
+                    // 4. Fallback: grab ALL text from the article root
+                    //    This handles cases where X changes data-testid names
+                    const articleText = getText(articleRoot);
+                    if (articleText && articleText.length > 200) {
+                        // Likely a long-form article body if >200 chars
+                        text += articleText + '\n\n';
+                    }
                 }
+            }
+
+            // 5. If still empty after article-specific extraction, fall back to tweetText
+            if (!text.trim()) {
+                const fallback = article.querySelector('[data-testid="tweetText"]');
+                if (fallback) text = getText(fallback);
             }
             text = text.trim();
         } else {
+            // --- Standard tweet extraction ---
             const textElements = article.querySelectorAll('[data-testid="tweetText"]');
             text = textElements.length > 0 ? getText(textElements[0]) : '';
             if (textElements.length > 1) {
@@ -103,7 +124,7 @@ function extractTweetData(article, mainTweetId, config) {
 
         // Extra check for image media / visual awareness
         const imageElements = isXArticle
-            ? article.querySelectorAll('img, video')
+            ? articleRoot.querySelectorAll('img, video')
             : article.querySelectorAll('div[data-testid="tweetPhoto"] img, div[data-testid="videoComponent"] video');
 
         imageElements.forEach((img, index) => {

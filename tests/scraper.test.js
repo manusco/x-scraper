@@ -50,7 +50,7 @@ describe('SCRAPER_CONFIG', () => {
         const merged = { ...SCRAPER_CONFIG, TARGET_COUNT: 999 };
         expect(merged.TARGET_COUNT).toBe(999);
         // Original remains untouched  
-        expect(SCRAPER_CONFIG.TARGET_COUNT).toBe(100);
+        expect(SCRAPER_CONFIG.TARGET_COUNT).toBe(1000);
     });
 
     test('zero sub-comments config is valid', () => {
