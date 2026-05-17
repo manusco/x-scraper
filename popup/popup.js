@@ -22,25 +22,97 @@ document.addEventListener('DOMContentLoaded', () => {
     const settingLinks = document.getElementById('settingLinks');
     const settingWebhook = document.getElementById('settingWebhook');
 
-    // --- Bookmarks Mode Detection ---
+    // New JTBD UI Elements
+    const platformBadge = document.getElementById('platformBadge');
+    const platformIcon = document.getElementById('platformIcon');
+    const platformName = document.getElementById('platformName');
+    const choicePost = document.getElementById('choicePost');
+    const choiceThread = document.getElementById('choiceThread');
+    const choicePostDesc = document.getElementById('choicePostDesc');
+    const choiceThreadTitle = document.getElementById('choiceThreadTitle');
+    const choiceThreadDesc = document.getElementById('choiceThreadDesc');
+
+    // Platform config: what each platform calls its content
+    const PLATFORM_CONFIGS = {
+        'x.com':        { icon: '𝕏', name: 'X (Twitter)', postDesc: 'Just the tweet / article', threadTitle: 'Tweet + Replies', threadDesc: 'Full thread conversation' },
+        'twitter.com':  { icon: '𝕏', name: 'X (Twitter)', postDesc: 'Just the tweet / article', threadTitle: 'Tweet + Replies', threadDesc: 'Full thread conversation' },
+        'linkedin.com': { icon: 'in', name: 'LinkedIn',   postDesc: 'Post text & author only', threadTitle: 'Post + Comments', threadDesc: 'Full professional discussion' },
+        'instagram.com':{ icon: '📷', name: 'Instagram',  postDesc: 'Caption & media info',    threadTitle: 'Caption + Comments', threadDesc: 'Post and all comments' },
+    };
+
+    function applyPlatformUI(hostname) {
+        const key = Object.keys(PLATFORM_CONFIGS).find(d => hostname.includes(d));
+        const cfg = key ? PLATFORM_CONFIGS[key] : null;
+
+        if (cfg) {
+            platformIcon.textContent = cfg.icon;
+            platformName.textContent = cfg.name;
+            choicePostDesc.textContent = cfg.postDesc;
+            choiceThreadTitle.textContent = cfg.threadTitle;
+            choiceThreadDesc.textContent = cfg.threadDesc;
+        } else {
+            platformName.textContent = 'Unsupported page';
+            scrapeBtn.disabled = true;
+        }
+    }
+
+    // Choice selection
+    let currentChoice = 'post'; // 'post' | 'thread'
+
+    function setChoice(choice) {
+        currentChoice = choice;
+        if (choice === 'thread') {
+            choiceThread.classList.add('active');
+            choicePost.classList.remove('active');
+            btnText.textContent = settingDownload.checked ? 'Save File' : 'Copy to Clipboard';
+            // Enable comment depth for thread mode
+            settingUnroll.checked = false;
+        } else {
+            choicePost.classList.add('active');
+            choiceThread.classList.remove('active');
+            btnText.textContent = settingDownload.checked ? 'Save File' : 'Copy to Clipboard';
+            // Post-only: set depth to 0 (scraper picks up only article/main post)
+            settingUnroll.checked = true;
+        }
+        chrome.storage.local.set({ choice });
+    }
+
+    choicePost.addEventListener('click', () => setChoice('post'));
+    choiceThread.addEventListener('click', () => setChoice('thread'));
+
+    // Update button label when download toggle changes
+    settingDownload.addEventListener('change', () => {
+        btnText.textContent = settingDownload.checked ? 'Save File' : 'Copy to Clipboard';
+        saveSettings();
+    });
+
+    // --- Site Mode Detection ---
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        if (tabs[0] && tabs[0].url && tabs[0].url.includes('/i/bookmarks')) {
-            bookmarksBanner.classList.remove('hidden');
-            btnText.textContent = 'Archive Bookmarks';
+        if (tabs[0] && tabs[0].url) {
+            const url = new URL(tabs[0].url);
+            applyPlatformUI(url.hostname);
+
+            if (tabs[0].url.includes('/i/bookmarks') || tabs[0].url.includes('/my-items/saved-posts/') || tabs[0].url.includes('/saved/')) {
+                bookmarksBanner.classList.remove('hidden');
+                bookmarksBanner.textContent = '🔖 Saved Archive Mode Detected';
+                btnText.textContent = 'Process Saved Items';
+            }
         }
     });
 
     // --- Settings Persistence ---
-    const SETTINGS_KEYS = ['maxSubcomments', 'format', 'unroll', 'metrics', 'download', 'links', 'webhook', 'advancedOpen'];
+    const SETTINGS_KEYS = ['maxSubcomments', 'format', 'metrics', 'download', 'webhook', 'advancedOpen', 'choice'];
 
     chrome.storage.local.get(SETTINGS_KEYS, (result) => {
         if (result.maxSubcomments !== undefined) settingSubcomments.value = result.maxSubcomments;
         if (result.format !== undefined) settingFormat.value = result.format;
-        if (result.unroll !== undefined) settingUnroll.checked = result.unroll;
         if (result.metrics !== undefined) settingMetrics.checked = result.metrics;
-        if (result.download !== undefined) settingDownload.checked = result.download;
-        if (result.links !== undefined) settingLinks.checked = result.links;
+        if (result.download !== undefined) {
+            settingDownload.checked = result.download;
+            btnText.textContent = result.download ? 'Save File' : 'Copy to Clipboard';
+        }
         if (result.webhook !== undefined) settingWebhook.value = result.webhook;
+        if (result.choice !== undefined) setChoice(result.choice);
         if (result.advancedOpen) {
             advancedSettings.classList.remove('hidden');
             advancedChevron.classList.add('open');
@@ -51,10 +123,8 @@ document.addEventListener('DOMContentLoaded', () => {
         chrome.storage.local.set({
             maxSubcomments: parseInt(settingSubcomments.value) || 5,
             format: settingFormat.value,
-            unroll: settingUnroll.checked,
             metrics: settingMetrics.checked,
             download: settingDownload.checked,
-            links: settingLinks.checked,
             webhook: settingWebhook.value.trim()
         });
     };
@@ -62,10 +132,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Auto-save on every change
     settingSubcomments.addEventListener('input', saveSettings);
     settingFormat.addEventListener('change', saveSettings);
-    settingUnroll.addEventListener('change', saveSettings);
     settingMetrics.addEventListener('change', saveSettings);
-    settingDownload.addEventListener('change', saveSettings);
-    settingLinks.addEventListener('change', saveSettings);
     settingWebhook.addEventListener('input', saveSettings);
 
     // --- Advanced Settings Toggle ---
@@ -117,15 +184,19 @@ document.addEventListener('DOMContentLoaded', () => {
         logger.clear();
         logger.log('Engaging Scraper Engine...');
 
+        // Post Only: depth=0, unroll=true (only main post captured)
+        // Thread: depth from settings, unroll=false
+        const isPostOnly = currentChoice === 'post';
         const userConfig = {
-            MAX_SUB_COMMENTS: parseInt(settingSubcomments.value) || 0,
+            MAX_SUB_COMMENTS: isPostOnly ? 0 : (parseInt(settingSubcomments.value) || 5),
             FORMAT: settingFormat.value,
-            UNROLL_THREAD: settingUnroll.checked,
+            UNROLL_THREAD: isPostOnly,
             INCLUDE_METRICS: settingMetrics.checked,
             DOWNLOAD: settingDownload.checked,
-            EXTRACT_LINKS: settingLinks.checked,
+            EXTRACT_LINKS: false,
             WEBHOOK_URL: settingWebhook.value.trim()
         };
+
 
         try {
             await runScrapeProcess(userConfig);
@@ -142,8 +213,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
         logger.log(`Active tab acquired: ${tab.id} (${tab.url})`);
 
-        if (!tab.url.includes('x.com') && !tab.url.includes('twitter.com')) {
-            throw new Error('Not executed on an X (Twitter) domain.');
+        const validDomains = ['x.com', 'twitter.com', 'linkedin.com', 'instagram.com'];
+        const isSupported = validDomains.some(domain => tab.url.includes(domain));
+
+        if (!isSupported) {
+            throw new Error('This platform is not yet supported for extraction.');
         }
 
         updateStatus('Injecting Collector...', 'normal');
@@ -178,7 +252,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
-                                source: 'X-Scraper',
+                                source: 'Omni-Scraper',
                                 timestamp: new Date().toISOString(),
                                 dataCount: result.count,
                                 payload: result.rawData || result.data
@@ -195,7 +269,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const blob = new Blob([result.data], { type: 'text/plain;charset=utf-8' });
                     const url = URL.createObjectURL(blob);
 
-                    let filename = `X_Scrape_${new Date().getTime()}`;
+                    let filename = `Social_Scrape_${new Date().getTime()}`;
                     if (userConfig.FORMAT === 'json') filename += '.json';
                     else if (userConfig.FORMAT === 'markdown') filename += '.md';
                     else filename += '.txt';

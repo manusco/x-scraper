@@ -1,5 +1,5 @@
 (() => {
-    console.log("X-Scraper: Content script loaded (v0.1.6).");
+    console.log('X-Scraper: Content script loaded (v0.1.6).');
 
     window.xScraper = {
         ping: () => 'pong',

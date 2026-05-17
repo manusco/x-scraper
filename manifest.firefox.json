@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
-    "name": "X-Scraper",
-    "version": "0.2.0",
-    "description": "Extract X (Twitter) threads, replies, and bookmarks as Markdown, JSON, or plain text. Includes metrics, resource harvesting, webhook integration, and bookmark archiving.",
+    "name": "Omni-Scraper",
+    "version": "0.3.0",
+    "description": "Extract knowledge from X, LinkedIn, and Instagram threads, posts, and media as Markdown, JSON, or plain text.",
     "permissions": [
         "activeTab",
         "scripting",
@@ -12,7 +12,9 @@
     ],
     "host_permissions": [
         "https://x.com/*",
-        "https://twitter.com/*"
+        "https://twitter.com/*",
+        "https://www.linkedin.com/*",
+        "https://www.instagram.com/*"
     ],
     "action": {
         "default_popup": "popup/popup.html",
@@ -30,14 +32,21 @@
     "web_accessible_resources": [
         {
             "resources": [
-                "shared/scraper.js"
+                "shared/scraper.js",
+                "shared/engine/BaseScraper.js",
+                "shared/engine/XScraper.js",
+                "shared/engine/LinkedInScraper.js",
+                "shared/engine/InstagramScraper.js"
             ],
             "matches": [
                 "https://x.com/*",
-                "https://twitter.com/*"
+                "https://twitter.com/*",
+                "https://www.linkedin.com/*",
+                "https://www.instagram.com/*"
             ]
         }
     ],
+
     "browser_specific_settings": {
         "gecko": {
             "id": "xscraper@manusco.com",

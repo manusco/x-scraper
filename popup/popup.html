@@ -4,58 +4,50 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>X-Scraper</title>
+    <title>Omni-Scraper</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="popup.css">
 </head>
 
 <body>
+    <!-- Header -->
     <div class="header">
         <div class="logo">
             <img src="../icons/icon48.png" alt="Logo" width="24" height="24">
-            <h1>X-Scraper</h1>
+            <h1>Omni-Scraper</h1>
         </div>
         <span class="version">v0.2.0</span>
     </div>
 
-    <p class="description">Extract thread knowledge without friction.</p>
+    <!-- Platform Badge -->
+    <div id="platformBadge" class="platform-badge">
+        <span id="platformIcon">🌐</span>
+        <span id="platformName">Detecting platform...</span>
+    </div>
 
-    <!-- Primary Settings -->
+    <!-- THE ONE DECISION: What do you want? -->
+    <div class="decision-section">
+        <p class="decision-label">What do you want to copy?</p>
+        <div class="choice-grid">
+            <button id="choicePost" class="choice-btn active">
+                <span class="choice-icon">📄</span>
+                <span class="choice-title">Post Only</span>
+                <span id="choicePostDesc" class="choice-desc">Just the main content</span>
+            </button>
+            <button id="choiceThread" class="choice-btn">
+                <span class="choice-icon">💬</span>
+                <span class="choice-title" id="choiceThreadTitle">Post + Comments</span>
+                <span id="choiceThreadDesc" class="choice-desc">Everything in the thread</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Output Options (always visible, simple) -->
     <div class="settings-card">
         <div class="setting-item">
             <div class="setting-text">
-                <span class="setting-title">Unroll Thread</span>
-                <span class="setting-desc">Author's tweets only</span>
-            </div>
-            <label class="toggle-switch">
-                <input type="checkbox" id="settingUnroll">
-                <span class="slider"></span>
-            </label>
-        </div>
-
-        <div class="setting-item">
-            <div class="setting-text">
-                <span class="setting-title">Include Metrics</span>
-                <span class="setting-desc">Likes, Reposts, Replies</span>
-            </div>
-            <label class="toggle-switch">
-                <input type="checkbox" id="settingMetrics" checked>
-                <span class="slider"></span>
-            </label>
-        </div>
-
-        <div class="setting-item">
-            <div class="setting-text">
-                <span class="setting-title">Comment Depth</span>
-                <span class="setting-desc">Max sub-comment tiers (0-25)</span>
-            </div>
-            <input type="number" id="settingSubcomments" class="sleek-number" value="5" min="0" max="25">
-        </div>
-
-        <div class="setting-item" title="Download the payload instead of copying to clipboard.">
-            <div class="setting-text">
                 <span class="setting-title">Save as File</span>
-                <span class="setting-desc">Download instead of clipboard</span>
+                <span class="setting-desc">Download instead of clipboard copy</span>
             </div>
             <label class="toggle-switch">
                 <input type="checkbox" id="settingDownload">
@@ -66,7 +58,7 @@
 
     <!-- Advanced Settings (collapsible) -->
     <button id="toggleAdvancedBtn" class="advanced-toggle-btn">
-        <span id="advancedBtnText">Advanced Settings</span>
+        <span id="advancedBtnText">More Options</span>
         <span id="advancedChevron" class="chevron">▼</span>
     </button>
 
@@ -83,33 +75,47 @@
             </select>
         </div>
 
-        <div class="setting-item" title="Detects outbound links and groups them at the bottom.">
+        <div id="commentDepthItem" class="setting-item">
             <div class="setting-text">
-                <span class="setting-title">Resource Harvester</span>
-                <span class="setting-desc">Extract & group all URLs</span>
+                <span class="setting-title">Comment Depth</span>
+                <span class="setting-desc">Max reply tiers to include</span>
+            </div>
+            <input type="number" id="settingSubcomments" class="sleek-number" value="5" min="0" max="25">
+        </div>
+
+        <div class="setting-item">
+            <div class="setting-text">
+                <span class="setting-title">Include Metrics</span>
+                <span class="setting-desc">Attach likes, shares, replies count</span>
             </div>
             <label class="toggle-switch">
-                <input type="checkbox" id="settingLinks">
+                <input type="checkbox" id="settingMetrics" checked>
                 <span class="slider"></span>
             </label>
         </div>
 
+        <!-- Hidden toggles kept for backward compatibility -->
+        <input type="checkbox" id="settingUnroll" style="display:none">
+        <input type="checkbox" id="settingLinks" style="display:none">
+
         <div class="setting-item" title="Send JSON payload directly to Make/Zapier/Notion endpoints.">
             <div class="setting-text">
-                <span class="setting-title">Second Brain Webhook</span>
-                <span class="setting-desc">POST URL (Leave blank to disable)</span>
+                <span class="setting-title">Webhook</span>
+                <span class="setting-desc">POST to Make / Zapier / Notion</span>
             </div>
             <input type="text" id="settingWebhook" class="sleek-text" placeholder="https://hook.zapier.com/..."
                 autocomplete="off">
         </div>
     </div>
 
+    <!-- Bookmarks banner (shown when on /saved/ pages) -->
     <div id="bookmarksBanner" class="bookmarks-banner hidden">
-        🔖 Bookmarks Archive Mode Detected
+        🔖 Saved Archive Mode Detected
     </div>
 
+    <!-- Primary CTA -->
     <button id="scrapeBtn" class="primary-btn">
-        <span id="btnText">Execute Protocol</span>
+        <span id="btnText">Copy to Clipboard</span>
     </button>
 
     <div id="status" class="status-box hidden">
@@ -131,4 +137,4 @@
     <script src="popup.js"></script>
 </body>
 
-</html>
+</html>

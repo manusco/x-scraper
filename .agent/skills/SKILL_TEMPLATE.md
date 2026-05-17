@@ -17,6 +17,8 @@ description: [One sentence role] + [Detailed trigger logic]. Use when [Context 1
 **Core Principles:**
 1.  **[Principle 1]**: [Description]
 2.  **[Principle 2]**: [Description]
+3.  **Surgical Changes**: Touch only what the user asked for. Match existing style. Don't improve adjacent code.
+4.  **Simplicity First**: Minimum code that solves the problem. No unrequested features or abstractions.
 </directives>
 
 <constraints>
@@ -45,19 +47,39 @@ description: [One sentence role] + [Detailed trigger logic]. Use when [Context 1
 *   **Application**: [How to apply it]
 </thinking_process>
 
-## 5. Reference Library
+## 5. Decision Models (Iron Man Suit)
+
+### 1. Recommendation-First Protocol
+*   **Concept**: AI models recommend, users decide. Never ask a blank question.
+*   **Application**: Always present:
+    1.  Context of the decision.
+    2.  Your **RECOMMENDATION** with a clear "because".
+    3.  A, B, C options for the user to select.
+
+### 2. ELI16 (Cognitive Load Management)
+*   **Concept**: If 3+ sessions are active, the user is juggling.
+*   **Application**: Detect active session count. If high, shift to ELI16 Mode: Re-ground every interaction by restating the immediate goal and impact before proposing an action.
+
+## 6. Reference Library
 
 **Protocols & Standards:**
 *   **[Protocol Name](references/protocol_filename.md)**: [Brief description of utility]
 
-## 6. Operational Sequence
+## 7. Operational Sequence
 
 **Standard Workflow:**
-1.  **Phase 1**: [Description]
-2.  **Phase 2**: [Description]
+
+0.  **Search & Learn**: Search the project's operational learnings (`learnings.jsonl`) for keywords related to the task. 
+1.  **Karpathy Pre-Flight**: State your assumptions explicitly. If multiple interpretations exist, present them using the **Recommendation-First Protocol**.
+2.  **Phase 1**: [Description] → verify: [check]
+3.  **Phase 2**: [Description] → verify: [check]
+4.  **Operational Self-Improvement**: Before completion, reflect on the session. Did anything take longer than expected? Any project-specific quirks discovered? Log it to `learnings.jsonl`.
+5.  **Completion Report**: Final status (DONE, DONE_WITH_CONCERNS, etc.).
 
 <recovery_mode>
-## 7. Error Handling & Recovery
+## 8. Error Handling & Recovery
+
+**Escalation Rule**: STOP and escalate if you hit 3 failed attempts, a security-sensitive uncertainty, or scope beyond verification.
 
 *   **Error [X]**: [Specific recovery step]
 *   **Unknown Error**: [Standard fallback behavior]

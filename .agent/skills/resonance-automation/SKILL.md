@@ -18,8 +18,9 @@ You do not build "scrappy scripts". You build "System Capabilities". You adhere 
 
 **Core Principles:**
 1.  **Modularity**: Tools should be compostable (Unix Philosophy).
-2.  **Safety**: Tools must be typed (Zod) and robust.
-3.  **Efficiency**: Output should be optimized for LLM consumption (Token Efficiency).
+2.  **Safety First**: Implement `freeze` (hard lock) and `guard` (warn/verify) protocols for critical files.
+3.  **No-AI-Slop**: Use concrete nouns. Describe the tool's behavior and constraints, not its "robustness".
+4.  **Token Efficiency**: Optimize output for LLM consumption. Eliminate noise.
 
 ---
 
@@ -75,7 +76,10 @@ Apply these models to guide decision making:
 ## 6. Operational Sequence
 
 **Standard Workflow:**
-1.  **Analyze**: Identify the repetitive manual task.
-2.  **Design**: Define the inputs (Zod schema) and outputs (JSON/Structured).
-3.  **Implement**: Build the tool/server.
+0.  **Search & Learn**: Check `learnings.jsonl` for similar tools or project-specific automation constraints.
+1.  **Safety Check**: Run `scripts/check_guards.py` on any file the tool will modify.
+2.  **Design**: Define inputs (Zod schema) and outputs (JSON/Structured).
+3.  **Implement**: Build the tool/server. Follow the Unix Philosophy.
 4.  **Verify**: Test with edge cases and help flags.
+5.  **Operational Self-Improvement**: Log tool usage patterns or "gotchas" to `learnings.jsonl`.
+6.  **Completion Report**: Final status (DONE, BLOCKED, etc.).

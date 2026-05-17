@@ -39,8 +39,15 @@ I need to determine the **Operation Mode**:
 *   **Decision**: Does the input provide enough context to write a "World Class" spec?
     *   **YES**: Proceed to Step 1 (Zero Drag).
     *   **NO**: Activate `resonance-product` -> [Socratic Interrogation](file:///d:/Dev/Resonance/.agent/skills/resonance-product/references/socratic_interrogation.md).
-        *   *Action*: Ask clarification questions using `notify_user`.
+        *   *Action*: If multiple interpretations exist, present them explicitly with tradeoffs before picking. Format:
+            ```
+            Interpretation A: [description] — tradeoff: [pros/cons]
+            Interpretation B: [description] — tradeoff: [pros/cons]
+            My recommendation: [A or B] because [reason].
+            Which do you prefer?
+            ```
         *   *Loop*: Continue until enough context is gathered.
+        → verify: User has confirmed scope before any spec is written.
 
 ### Step 1: Deep Research (The Swarm)
 Spawn parallel researchers to map the territory.
@@ -86,21 +93,25 @@ Write the authoritative `implementation_plan.md` using iterative refinement. **S
 *   **Action**: Identify all 9 mandatory phases. List objectives for each.
 *   **Check**: Does every doc section have a plan objective?
 *   **Visual Logic**: Include an **ASCII Architecture Diagram** showing the *Current* vs *Target* flow.
+    → verify: User approves the skeleton before proceeding to Pass 2.
 
 #### Pass 2: Atomicity (The 5-Second Rule)
 *   **Goal**: Transform compound actions into single, executable steps.
 *   **Rule**: If a developer can't begin executing in 5 seconds, it's not atomic.
 *   **Action**: Ensure single verb per action. Reference single file:line locations.
+    → verify: User approves atomicity before proceeding to Pass 3.
 
 #### Pass 3: Detail Enrichment (Zero Ambiguity)
 *   **Goal**: Eliminate all remaining ambiguity with rationales and boilerplate.
 *   **Action**: Add **Rationales** for non-obvious choices. Provide **Boilerplate Stubs** for every new file (imports/signatures only).
 *   **Trade-offs**: Explain *Engineered Enough* vs *Speed* decisions.
+    → verify: User approves detail before proceeding to Pass 4.
 
 #### Pass 4: Verification (The Binary Proof)
 *   **Goal**: Make every action provably complete.
 *   **Action**: Add **Verification Commands** (e.g., `grep`, `test -f`, `curl`) for 50%+ of actions.
 *   **Final Output**: A verifiable, high-fidelity blueprint.
+    → verify: User approves final plan. Plan is ready for `/build`.
 
 ### Step 5: Interactive Handshake
 *   **Action**: At the end of EACH pass, summarize progress and ask: "Does this [Pass Name] align with your vision? Approval required to proceed to the next pass."

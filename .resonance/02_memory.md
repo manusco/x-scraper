@@ -30,3 +30,13 @@
   - Added .resonance/04_systems.md.
 - **Kernel Update**: Updated AGENTS.md and resonance.sh.
 - **Memory Preserved**: Core context files remained intact.
+
+## 2026-05-17 - Evolution Protocol (`/update-resonance`)
+- **Upgrade**: Successfully moved to Resonance v2.0.1 (Resonance Enterprise).
+- **Health Audit**: **Score: 100/100 (A+)**.
+  - **Lint**: Fixed `global` scope errors in tests and unused variables.
+  - **Build**: Restored missing `scripts/validate-manifest.js` validator.
+  - **Tests**: 149/149 passing (100% success rate).
+- **Drift Resolution**: Synchronized documentation with Git history (v0.2.0).
+- **Lesson**: Kernel upgrades are the perfect time to fix "deceptively simple" environment drift.
+
