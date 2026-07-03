@@ -1,0 +1,6 @@
+{
+  "tools": ["claude-code"],
+  "includePrivate": false,
+  "public": {"remote": "https://github.com/manusco/resonance.git", "ref": null},
+  "private": {"remote": null, "ref": null}
+}

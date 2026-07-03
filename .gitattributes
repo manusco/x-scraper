@@ -1,0 +1,2 @@
+# Resonance: keep vendored shell scripts LF for macOS/Linux
+resonance.sh text eol=lf
