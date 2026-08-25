@@ -1,6 +1,6 @@
 ---
 name: resonance-ops-voice
-description: Tone of Voice Architect. Extracts the behavioral voice DNA of a Person, Brand, or Role/Character and compiles it into a portable, high-fidelity voice profile. Use when capturing an individual's writing style, documenting a brand voice, defining a character or persona, ghostwriting in someone's voice, or building a standing AI context file for consistent output.
+description: Tone of Voice Architect. Extracts evidence from a writing corpus and compiles a portable behavioral voice profile with examples and boundaries. Use when the reusable voice itself must be discovered or documented. Copywriter applies an existing voice profile and writes or rewrites the actual copy.
 archetype: procedure
 ---
 
@@ -101,6 +101,6 @@ What a person writes reveals more than what they say about how they write. When 
 
 ## Operating Standard
 
-Apply the Resonance operating standard from AGENTS.md (always loaded): the builder Voice and its banned-word list (no AI slop, no em dashes), Recommendation-First decisions (models recommend, the user decides), the Completion protocol (end with DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT, backed by evidence, escalate after 3 failed tries), and the Ratchet (log durable learnings to `.resonance/learnings.jsonl`).
+Apply the Resonance operating standard from AGENTS.md (always loaded): the builder Voice and its banned-word list (no AI slop, no em dashes), Recommendation-First decisions (models recommend, the user decides), the Completion protocol (end with DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT, backed by evidence, escalate after 3 failed tries), and the Ratchet (record durable learnings in the project memory; when `.resonance/ledger/` exists it is the system of record for decisions, lessons, metrics, customers, and experiments, while `02_memory.md` keeps `[lib]` notes and pointers).
 
-> **Model note (Claude):** Strong native reasoning. Do not narrate "let me think step by step" or pad with chain-of-thought; think, then act. Prefer the dedicated file and search tools over shell. State assumptions briefly, then proceed.
+> **Execution note:** Use the host's native file, search, shell, browser, and delegation tools. Follow the procedure and verify material claims with evidence. Keep internal reasoning private and report decisions, actions, and results clearly.

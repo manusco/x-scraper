@@ -1,9 +1,59 @@
-#!/usr/bin/env bash
-# Resonance entrypoint (vendored, do not edit by hand). Dispatches to the engine.
-set -euo pipefail
-here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-engine="$here/.agents/.runtime/resonance_sync.py"
-py="$(command -v python3 || command -v python || command -v py || true)"
-if [ -z "$py" ]; then echo "resonance: python not found" >&2; exit 0; fi
-cmd="${1:-check}"; shift || true
-exec "$py" "$engine" "$cmd" --repo "$here" "$@"
+#!/bin/bash
+# resonance.sh - System check for Resonance v2.5.1
+
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m'
+
+echo "🔮 Resonance v2.5.1 - System Check"
+echo "========================================"
+
+# 1. Check Memory (project brain)
+if [ ! -f .resonance/01_state.md ]; then
+    echo ""
+    echo "🧠 Resonance skills loaded. Project memory not found."
+    echo "👉 Next step: type '/init' in your AI chat to configure this project."
+    echo "   The agent will ask what you're building and scaffold .resonance/ for you."
+    exit 0
+fi
+echo -e "${GREEN}✅ Project memory active (.resonance/)${NC}"
+
+# 2. Check Skills
+SKILL_COUNT=$(find .agents/skills -name "SKILL.md" 2>/dev/null | wc -l)
+if [ "$SKILL_COUNT" -eq "0" ]; then
+    echo -e "${RED}⚠️  No compiled skills found in .agents/skills/.${NC}"
+    echo "   Run: py .forge/forge.py build --all"
+    exit 1
+fi
+echo -e "${GREEN}✅ Skill library loaded ($SKILL_COUNT skills active)${NC}"
+
+# 3. Ensure docs structure exists
+if [ ! -d docs ]; then
+    mkdir -p docs/prd docs/architecture docs/features docs/rfcs
+    echo "   Created docs/ directory structure."
+fi
+echo -e "${GREEN}✅ Docs structure ready${NC}"
+
+echo ""
+echo "📖 Soul (Vision):"
+head -n 5 .resonance/00_soul.md
+echo "..."
+echo ""
+echo "📊 State (Current task):"
+head -n 10 .resonance/01_state.md
+echo "..."
+echo ""
+echo "========================================"
+echo -e "${GREEN}System online. Ready.${NC}"
+echo ""
+
+# 4. Verify slash commands are generated for this clone
+CMD_COUNT=$(find .claude/skills -name "SKILL.md" 2>/dev/null | wc -l)
+if [ "$CMD_COUNT" -eq "0" ]; then
+    echo "⚙️  Generating slash commands (first run)..."
+    py .forge/forge.py commands --host all >/dev/null 2>&1 || python3 .forge/forge.py commands --host all >/dev/null 2>&1
+fi
+echo "Slash commands ready in Claude Code, Cursor, Codex, and opencode."
+echo "Try: /plan  /grill  /build  /debug  /design  /test  /review-pr  /ship"
+echo "Full command map: AGENTS.md"

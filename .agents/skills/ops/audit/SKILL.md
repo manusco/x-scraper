@@ -1,7 +1,57 @@
 ---
 name: resonance-ops-audit
-description: The Gatekeeper and Auditor Swarm. Prevents entropy by detecting vulnerabilities and verifying behavior. Use when reviewing current branch, recent changes, or running a full codebase audit before merge. Drives the security, reviewer, qa, and architect subagents.
+description: Audit conductor for a branch, change set, or codebase. Owns audit scope, earned specialist dispatch, severity normalization, reconciliation, and final disposition. Use for a multi-domain audit before merge or release. Security, Reviewer, QA, Architect, Backend, Performance, and Product own their domain findings. Use a specialist directly for a single-domain question.
 archetype: orchestration
+contract_version: 1
+job_id: verification.audit
+stage: VERIFY
+contributes_to:
+reviews:
+  - delivery.goal
+finalizes:
+  - audit-report
+artifact_access:
+  - implementation-artifact:read,review
+  - audit-evidence:create,append_evidence,modify
+  - audit-report:create,modify,approve
+dispatch_conditions:
+  - a repository, change, release, or system surface needs multi-specialist verification
+compatibility: active
+owner: ops.audit
+activation: manual
+authority: consequential
+triggers:
+  - audit a repository, PR, release, or system surface
+entrypoints:
+  - /audit
+negative_triggers:
+  - implement the fix directly
+inputs:
+  - user_request
+  - artifact
+  - audit_scope
+outputs:
+  - user_request
+  - recommendation
+  - evidence
+  - security_scope
+  - test_scope
+  - qa_scope
+  - review_scope
+  - reviewer_scope
+  - architecture_scope
+  - architect_scope
+side_effects:
+  - may_coordinate_work
+  - may_execute_checks
+write_sets:
+  - project:audit-report
+failure_policy: stop
+invokes:
+  - resonance-ops-security
+  - resonance-ops-reviewer
+  - resonance-ops-qa
+  - resonance-strategy-architect
 ---
 
 # /resonance-ops-audit: prevent entropy, enforce standards
@@ -61,6 +111,6 @@ You do not do the work yourself. You spawn specialists (`resonance-ops-security`
 
 ## Operating Standard
 
-Apply the Resonance operating standard from AGENTS.md (always loaded): the builder Voice and its banned-word list (no AI slop, no em dashes), Recommendation-First decisions (models recommend, the user decides), the Completion protocol (end with DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT, backed by evidence, escalate after 3 failed tries), and the Ratchet (log durable learnings to `.resonance/learnings.jsonl`).
+Apply the Resonance operating standard from AGENTS.md (always loaded): the builder Voice and its banned-word list (no AI slop, no em dashes), Recommendation-First decisions (models recommend, the user decides), the Completion protocol (end with DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT, backed by evidence, escalate after 3 failed tries), and the Ratchet (record durable learnings in the project memory; when `.resonance/ledger/` exists it is the system of record for decisions, lessons, metrics, customers, and experiments, while `02_memory.md` keeps `[lib]` notes and pointers).
 
-> **Model note (Claude):** Strong native reasoning. Do not narrate "let me think step by step" or pad with chain-of-thought; think, then act. Prefer the dedicated file and search tools over shell. State assumptions briefly, then proceed.
+> **Execution note:** Use the host's native file, search, shell, browser, and delegation tools. Follow the procedure and verify material claims with evidence. Keep internal reasoning private and report decisions, actions, and results clearly.

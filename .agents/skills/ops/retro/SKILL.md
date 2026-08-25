@@ -1,6 +1,6 @@
 ---
 name: resonance-ops-retro
-description: The Analytics Officer. Generates comprehensive engineering retrospectives by analyzing git history to extract objective team performance metrics and narrative insights. Use when wrapping up a sprint, evaluating a release cycle, or running a post-mortem.
+description: Engineering retrospective analyst. Uses completed-cycle evidence and git history to explain what happened, what changed, and what should improve. Use when a sprint, release, or recovered incident needs retrospective analysis. It does not command a live incident or implement infrastructure changes.
 archetype: procedure
 ---
 
@@ -24,10 +24,11 @@ Most retros are feeling-based. This protocol is data-based. Look at git history 
 Copy this checklist and tick items as you go.
 
 1. **Data Gathering (The Git Sweep)**: Run `git log --since="X days ago" --oneline --stat`. Group commits by author. Identify code churn vs adding new capability. Determine Test Ratio (Lines of tests vs Lines of application code).
-2. **Metric Computation**: Calculate Retro Metrics:
-   - **Shipping Streak**: Consecutive days code was shipped.
-   - **Focus Score**: Percentage of commits grouped into distinct logical branches vs ad-hoc main patches.
-   - **Complexity Delta**: Lines removed vs lines added (did complexity strictly increase?).
+2. **Metric Computation**: Calculate the Retro Metrics using the exact definitions and git commands in Retro Metrics (compute them the same way every time, not by eye):
+   - **Shipping Streak**: Consecutive calendar days with at least one commit.
+   - **Focus Score**: Share of commits that stayed inside one top-level area vs commits that sprayed across three or more.
+   - **Complexity Delta**: Net lines (insertions minus deletions), read against what actually shipped.
+   - **Test Ratio**: Lines of test code changed vs application code changed.
 3. **Narrative Assembly**: Draft the retrospective document:
    - **The Big Picture**: 3-sentence summary of the week's theme.
    - **Objective Metrics**: Commits, LOC Changed, Active Days.
@@ -51,10 +52,11 @@ Balance mathematical truths with human empathy (Constructive Praise + Growth Opp
 
 ## Reference Library
 
+- **[Retro Metrics](references/retro_metrics.md)**: Exact, git-computable definitions of Shipping Streak, Focus Score, Complexity Delta, and Test Ratio.
 - **[Karpathy Rules](../core/references/karpathy_rules.md)**: Universal coding standards (Simplicity, Surgical).
 
 ## Operating Standard
 
-Apply the Resonance operating standard from AGENTS.md (always loaded): the builder Voice and its banned-word list (no AI slop, no em dashes), Recommendation-First decisions (models recommend, the user decides), the Completion protocol (end with DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT, backed by evidence, escalate after 3 failed tries), and the Ratchet (log durable learnings to `.resonance/learnings.jsonl`).
+Apply the Resonance operating standard from AGENTS.md (always loaded): the builder Voice and its banned-word list (no AI slop, no em dashes), Recommendation-First decisions (models recommend, the user decides), the Completion protocol (end with DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT, backed by evidence, escalate after 3 failed tries), and the Ratchet (record durable learnings in the project memory; when `.resonance/ledger/` exists it is the system of record for decisions, lessons, metrics, customers, and experiments, while `02_memory.md` keeps `[lib]` notes and pointers).
 
-> **Model note (Claude):** Strong native reasoning. Do not narrate "let me think step by step" or pad with chain-of-thought; think, then act. Prefer the dedicated file and search tools over shell. State assumptions briefly, then proceed.
+> **Execution note:** Use the host's native file, search, shell, browser, and delegation tools. Follow the procedure and verify material claims with evidence. Keep internal reasoning private and report decisions, actions, and results clearly.

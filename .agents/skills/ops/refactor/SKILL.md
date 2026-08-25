@@ -25,7 +25,7 @@ Copy this checklist and tick items as you go.
 
 1. **Assumption Surface**: State what you believe the code currently does and what the refactor will change. If uncertain, ask. Do not pick an interpretation silently. → verify: written, not just thought.
 2. **Verify (Before)**: Run the test suite. → verify: green before any change.
-3. **Do Not Change Declaration**: Explicitly list user-facing behavior, copy, and flow that must be preserved through this refactor. This step is required, not optional. → verify: list written.
+3. **Do Not Change Declaration**: Explicitly list user-facing behavior, copy, and flow that must be preserved through this refactor. This step is required, not optional. It also names the safety checks that must survive: trust-boundary validation, authorization checks, data-loss guards, and accessibility affordances. These look inert on every tested path, so a green suite before and after will happily bless their removal, yet their absence shows only under attack or failure. A safety check is never dead code. → verify: list written, safety checks named.
 4. **Name the Business Risk**: For each planned change, name the business consequence it addresses. If you cannot name what actually breaks or drifts if the smell persists, the refactor is aesthetic. Deprioritize it. → verify: business consequence named for each change.
 5. **Plan (Mikado)**: Identify the dependency graph. Fix the leaves first. Name only the files and functions that will change. → verify: scope is specific.
 6. **Apply the Safe Sequence**: Lock (ensure behavior is captured by tests) → Extract (pull duplicated truth into one source) → Centralize (consolidate scattered access or permission rules) → Split (separate overloaded responsibilities) → Cleanup (formatting, naming, dead code, always last). → verify: only one concern per commit.
@@ -85,6 +85,6 @@ Leave the file cleaner than you found it. Limited to the file already being touc
 
 ## Operating Standard
 
-Apply the Resonance operating standard from AGENTS.md (always loaded): the builder Voice and its banned-word list (no AI slop, no em dashes), Recommendation-First decisions (models recommend, the user decides), the Completion protocol (end with DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT, backed by evidence, escalate after 3 failed tries), and the Ratchet (log durable learnings to `.resonance/learnings.jsonl`).
+Apply the Resonance operating standard from AGENTS.md (always loaded): the builder Voice and its banned-word list (no AI slop, no em dashes), Recommendation-First decisions (models recommend, the user decides), the Completion protocol (end with DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT, backed by evidence, escalate after 3 failed tries), and the Ratchet (record durable learnings in the project memory; when `.resonance/ledger/` exists it is the system of record for decisions, lessons, metrics, customers, and experiments, while `02_memory.md` keeps `[lib]` notes and pointers).
 
-> **Model note (Claude):** Strong native reasoning. Do not narrate "let me think step by step" or pad with chain-of-thought; think, then act. Prefer the dedicated file and search tools over shell. State assumptions briefly, then proceed.
+> **Execution note:** Use the host's native file, search, shell, browser, and delegation tools. Follow the procedure and verify material claims with evidence. Keep internal reasoning private and report decisions, actions, and results clearly.

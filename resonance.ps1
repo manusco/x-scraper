@@ -1,12 +1,54 @@
-#!/usr/bin/env pwsh
-# Resonance entrypoint (vendored, do not edit by hand). Dispatches to the engine.
-param([Parameter(Position=0)][string]$Command = "check")
-$here = Split-Path -Parent $MyInvocation.MyCommand.Path
-$engine = Join-Path $here ".agents/.runtime/resonance_sync.py"
-$py = $null
-foreach ($c in @("py","python","python3")) {
-  $g = Get-Command $c -ErrorAction SilentlyContinue
-  if ($g) { $py = $g.Source; break }
+# resonance.ps1 - System check for Resonance v2.5.1 (Windows)
+
+Write-Host "🔮 Resonance v2.5.1 - System Check"
+Write-Host "========================================"
+
+# 1. Check Memory (project brain)
+if (-not (Test-Path ".resonance\01_state.md")) {
+    Write-Host ""
+    Write-Host "🧠 Resonance skills loaded. Project memory not found."
+    Write-Host "👉 Next step: type '/init' in your AI chat to configure this project."
+    Write-Host "   The agent will ask what you're building and scaffold .resonance\ for you."
+    exit 0
 }
-if (-not $py) { Write-Host "resonance: python not found"; exit 0 }
-& $py $engine $Command --repo $here @args
+Write-Host "✅ Project memory active (.resonance\)" -ForegroundColor Green
+
+# 2. Check Skills
+$skillFiles = Get-ChildItem -Path ".agents\skills" -Filter "SKILL.md" -Recurse -ErrorAction SilentlyContinue
+$skillCount = $skillFiles.Count
+if ($skillCount -eq 0) {
+    Write-Host "⚠️  No compiled skills found in .agents\skills\." -ForegroundColor Red
+    Write-Host "   Run: py .forge\forge.py build --all"
+    exit 1
+}
+Write-Host "✅ Skill library loaded ($skillCount skills active)" -ForegroundColor Green
+
+# 3. Ensure docs structure exists
+if (-not (Test-Path "docs")) {
+    New-Item -ItemType Directory -Force -Path "docs\prd", "docs\architecture", "docs\features", "docs\rfcs" | Out-Null
+    Write-Host "   Created docs\ directory structure."
+}
+Write-Host "✅ Docs structure ready" -ForegroundColor Green
+
+Write-Host ""
+Write-Host "📖 Soul (Vision):"
+Get-Content -Path ".resonance\00_soul.md" -TotalCount 5
+Write-Host "..."
+Write-Host ""
+Write-Host "📊 State (Current task):"
+Get-Content -Path ".resonance\01_state.md" -TotalCount 10
+Write-Host "..."
+Write-Host ""
+Write-Host "========================================"
+Write-Host "System online. Ready." -ForegroundColor Green
+Write-Host ""
+
+# 4. Verify slash commands are generated for this clone
+$cmdFiles = Get-ChildItem -Path ".claude\skills" -Filter "SKILL.md" -Recurse -ErrorAction SilentlyContinue
+if ($cmdFiles.Count -eq 0) {
+    Write-Host "⚙️  Generating slash commands (first run)..."
+    py .forge\forge.py commands --host all 2>&1 | Out-Null
+}
+Write-Host "Slash commands ready in Claude Code, Cursor, Codex, and opencode."
+Write-Host "Try: /plan  /grill  /build  /debug  /design  /test  /review-pr  /ship"
+Write-Host "Full command map: AGENTS.md"

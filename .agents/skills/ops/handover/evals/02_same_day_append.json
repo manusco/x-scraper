@@ -4,6 +4,7 @@
   "files": [
     "docs/handovers/<today>_handover.md"
   ],
+  "fixture_optional": true,
   "expected_behavior": [
     "Detects that a handover file for today already exists",
     "Appends to the existing file - does not create a new file or overwrite",
@@ -13,5 +14,11 @@
     "Gotchas section in the append mentions the missing JWT_SECRET in staging .env",
     "The original handover content from the earlier session is preserved intact",
     "Updates .resonance/01_state.md Next Session to reflect the now-resolved test failures"
+  ],
+  "checks": [
+    {
+      "kind": "regex_absent",
+      "value": "[\u2014\u2013]"
+    }
   ]
 }

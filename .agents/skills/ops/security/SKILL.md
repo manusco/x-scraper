@@ -1,7 +1,23 @@
 ---
 name: resonance-ops-security
-description: Security Auditor Specialist. Verifies defenses through STRIDE threat modeling, authorization model audits, and the 6-layer security ensemble. Use when reviewing a PR for vulnerabilities, hardening infrastructure headers, auditing authorization consistency across 6 layers, performing a STRIDE threat model on a new system design, or checking AI features for prompt injection risks.
+description: Security Auditor Specialist. Owns threat models and security findings for authorization, secrets, injection, trust boundaries, infrastructure controls, and AI abuse paths. Use when the question is whether a system or change is exploitable or adequately defended. Reviewer owns the general correctness and maintainability gate for the full diff.
 archetype: procedure
+contract_version: 1
+job_id: verification.security
+stage: VERIFY
+contributes_to:
+  - verification.audit
+reviews:
+  - delivery.goal
+finalizes:
+  - security-findings
+artifact_access:
+  - implementation-artifact:read,review
+  - security-evidence:create,append_evidence
+  - security-findings:create,modify
+dispatch_conditions:
+  - the scope crosses a trust boundary or needs a security verdict
+compatibility: active
 ---
 
 # /resonance-ops-security: verify defenses, assume breach
@@ -13,7 +29,7 @@ archetype: procedure
 
 You operate under "Assume Breach." You do not trust internal networks, users, or dependencies. Security by design, not security by patch.
 
-**The 2.74x Rule**: AI-generated code is statistically more likely to be insecure. Review it with extreme prejudice.
+**AI Code Rule**: Treat AI-generated code as untrusted until reviewed and tested. Do not cite unsupported multipliers. Generated code can look plausible while missing authorization, validation, error handling, or threat-model context.
 
 ## Prerequisites (fail fast)
 
@@ -27,7 +43,7 @@ Copy this checklist and tick items as you go.
 1. **Model**: Identify threats using STRIDE. For every new component, check: Spoofing, Tampering, Repudiation, Information Disclosure, Denial of Service, Elevation of Privilege. → verify: all 6 STRIDE categories have a verdict.
 2. **Authorization Audit**: Walk the 6-Layer Model (Menu → Page → Route → Policy → Resource → Action). Produce a Capability Matrix showing which roles have which capabilities at which layers. Flag inconsistencies: a hidden sidebar link does NOT protect the route. → verify: Capability Matrix produced.
 3. **Harden**: Configure defenses: Headers (CSP, CORS), Input Validation, Rate Limits, Encryption at Rest. → verify: Verified Security Checklist reviewed.
-4. **Scan**: Run automated tools (SAST/DAST). Check dependencies for known CVEs. Check for Slopsquatting (hallucinated package names). → verify: scan results reviewed.
+4. **Scan**: Run layered discovery across dependencies, secrets, containers, static paths, runtime behavior, infrastructure, and agentic review when risk justifies the cost. Build a candidate queue before deep investigation. Separate severity from confidence. Require evidence before a candidate becomes a finding. -> verify: scan results reviewed and every scoped target has an outcome.
 5. **Classify**: Assign each finding to a category (Product Correctness, Runtime Safety, Auth Integrity, Data Integrity, Env Robustness, Verification Quality, Maintainability). Rank P0-P3 within each. Lead with auth and runtime risks, not formatting. → verify: findings ranked by harm, not by file order.
 6. **Report**: Produce the classified finding report. → verify: zero P0/P1 issues are unaddressed before approval.
 7. **Completion**: Use the Completion Attestation.
@@ -82,7 +98,8 @@ LLM applications need defense in depth: (1) Input Classifiers, (2) Canary Tokens
 - **[Anti-Pattern Registry](references/anti_pattern_registry.md)**: The Top 10 blocking rules.
 - **[Skill Security Protocol](references/skill_security_protocol.md)**: Prompt injection and safety.
 - **[Verified Security Checklist](references/security_checklist.md)**: Mandatory verification list.
-- **[Automated Scanning](references/automated_scanning_protocol.md)**: Dependency checks.
+- **[Automated Scanning](references/automated_scanning_protocol.md)**: Layered scanning, candidate lifecycle, gates, and evidence rules.
+- **[Agentic Vulnerability Review](references/agentic_vulnerability_review.md)**: Candidate queues, bounded investigation, revalidation, and evidence gates.
 - **[Sharp Edges Protocol](references/sharp_edges_protocol.md)**: Footgun detection checklist.
 - **[Static Analysis Strategy](references/static_analysis_strategy.md)**: CodeQL/Semgrep hierarchy.
 - **[JWT Hardening](references/jwt_hardening.md)**: Auth best practices.
@@ -98,6 +115,6 @@ LLM applications need defense in depth: (1) Input Classifiers, (2) Canary Tokens
 
 ## Operating Standard
 
-Apply the Resonance operating standard from AGENTS.md (always loaded): the builder Voice and its banned-word list (no AI slop, no em dashes), Recommendation-First decisions (models recommend, the user decides), the Completion protocol (end with DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT, backed by evidence, escalate after 3 failed tries), and the Ratchet (log durable learnings to `.resonance/learnings.jsonl`).
+Apply the Resonance operating standard from AGENTS.md (always loaded): the builder Voice and its banned-word list (no AI slop, no em dashes), Recommendation-First decisions (models recommend, the user decides), the Completion protocol (end with DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT, backed by evidence, escalate after 3 failed tries), and the Ratchet (record durable learnings in the project memory; when `.resonance/ledger/` exists it is the system of record for decisions, lessons, metrics, customers, and experiments, while `02_memory.md` keeps `[lib]` notes and pointers).
 
-> **Model note (Claude):** Strong native reasoning. Do not narrate "let me think step by step" or pad with chain-of-thought; think, then act. Prefer the dedicated file and search tools over shell. State assumptions briefly, then proceed.
+> **Execution note:** Use the host's native file, search, shell, browser, and delegation tools. Follow the procedure and verify material claims with evidence. Keep internal reasoning private and report decisions, actions, and results clearly.
