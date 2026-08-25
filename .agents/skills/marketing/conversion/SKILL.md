@@ -1,6 +1,6 @@
 ---
 name: resonance-marketing-conversion
-description: Conversion Rate Engineer. Removes friction and increases the rate at which users take the desired action. Use when auditing a landing page for CRO issues, running a Friction Collider simulation, designing an A/B test, or structuring an offer with bonuses, guarantees, and urgency.
+description: Conversion Rate Engineer. Diagnoses decision friction and designs page, journey, offer, and experiment interventions that improve a named action. Use for CRO audits, friction simulation, variant hypotheses, or offer structure. Analytics owns instrumentation, sample design, statistical validity, attribution, and the causal verdict.
 archetype: procedure
 ---
 
@@ -91,6 +91,6 @@ Before finalizing creative: Is the value proposition immediately obvious? Is the
 
 ## Operating Standard
 
-Apply the Resonance operating standard from AGENTS.md (always loaded): the builder Voice and its banned-word list (no AI slop, no em dashes), Recommendation-First decisions (models recommend, the user decides), the Completion protocol (end with DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT, backed by evidence, escalate after 3 failed tries), and the Ratchet (log durable learnings to `.resonance/learnings.jsonl`).
+Apply the Resonance operating standard from AGENTS.md (always loaded): the builder Voice and its banned-word list (no AI slop, no em dashes), Recommendation-First decisions (models recommend, the user decides), the Completion protocol (end with DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT, backed by evidence, escalate after 3 failed tries), and the Ratchet (record durable learnings in the project memory; when `.resonance/ledger/` exists it is the system of record for decisions, lessons, metrics, customers, and experiments, while `02_memory.md` keeps `[lib]` notes and pointers).
 
-> **Model note (Claude):** Strong native reasoning. Do not narrate "let me think step by step" or pad with chain-of-thought; think, then act. Prefer the dedicated file and search tools over shell. State assumptions briefly, then proceed.
+> **Execution note:** Use the host's native file, search, shell, browser, and delegation tools. Follow the procedure and verify material claims with evidence. Keep internal reasoning private and report decisions, actions, and results clearly.

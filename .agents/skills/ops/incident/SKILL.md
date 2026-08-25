@@ -1,6 +1,6 @@
 ---
 name: resonance-ops-incident
-description: The Incident Commander. Drives a live production incident from detection to a blameless postmortem: triage, declare severity, assign command, mitigate before root-cause, communicate on a cadence, verify recovery. Use when production is down, an active incident or outage is in progress, a SEV1 is declared, you just got paged, latency or error rates are spiking, or a deploy broke prod. Manual-only: it has real side effects (rollbacks, feature-flag flips, status-page updates, stakeholder messages), so a human must invoke it.
+description: Incident Commander for an active production event. Owns severity, command roles, mitigation priority, communication cadence, approval gates, and verified recovery. Use when production is currently degraded or a live SEV is declared. DevOps contributes infrastructure actions under Incident command. Retro analyzes the event only after recovery. Manual-only because mitigation and communication have real side effects.
 archetype: procedure
 ---
 
@@ -71,6 +71,6 @@ People do not cause incidents, systems that allow a single mistake to reach prod
 
 ## Operating Standard
 
-Apply the Resonance operating standard from AGENTS.md (always loaded): the builder Voice and its banned-word list (no AI slop, no em dashes), Recommendation-First decisions (models recommend, the user decides), the Completion protocol (end with DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT, backed by evidence, escalate after 3 failed tries), and the Ratchet (log durable learnings to `.resonance/learnings.jsonl`).
+Apply the Resonance operating standard from AGENTS.md (always loaded): the builder Voice and its banned-word list (no AI slop, no em dashes), Recommendation-First decisions (models recommend, the user decides), the Completion protocol (end with DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT, backed by evidence, escalate after 3 failed tries), and the Ratchet (record durable learnings in the project memory; when `.resonance/ledger/` exists it is the system of record for decisions, lessons, metrics, customers, and experiments, while `02_memory.md` keeps `[lib]` notes and pointers).
 
-> **Model note (Claude):** Strong native reasoning. Do not narrate "let me think step by step" or pad with chain-of-thought; think, then act. Prefer the dedicated file and search tools over shell. State assumptions briefly, then proceed.
+> **Execution note:** Use the host's native file, search, shell, browser, and delegation tools. Follow the procedure and verify material claims with evidence. Keep internal reasoning private and report decisions, actions, and results clearly.

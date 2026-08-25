@@ -1,0 +1,46 @@
+#!/bin/sh
+# Resonance pre-push ship-gate (opt-in). Enable with: py .forge/hooks/install.py
+# Blocks pushing a release tag (or an update to main) when the Resonance release
+# gate is not green: the skill validator, the library validator, the eval
+# structure check, and the doc-drift check. This is the deterministic version of
+# "do not ship without a passing test." For a non-Resonance project, swap the
+# four checks below for that project's test and build command.
+# Bypass once with: git push --no-verify
+PY=$(command -v py 2>/dev/null || command -v python3 2>/dev/null || command -v python 2>/dev/null)
+if [ -z "$PY" ]; then
+  echo "Resonance ship-gate: no python on PATH; skipping." >&2
+  exit 0
+fi
+
+# Only gate release-shaped pushes: a tag, or an update to main/master.
+gate=0
+while read local_ref local_sha remote_ref remote_sha; do
+  case "$remote_ref" in
+    refs/tags/*) gate=1 ;;
+    refs/heads/main|refs/heads/master) gate=1 ;;
+  esac
+done
+[ "$gate" -eq 0 ] && exit 0
+
+if [ ! -f .forge/validate_skill.py ]; then
+  exit 0   # not the Resonance repo root; nothing to gate
+fi
+
+echo "Resonance ship-gate: verifying the release before push..." >&2
+fail() { echo "Resonance ship-gate: $1 Push blocked. Fix it, or bypass once with 'git push --no-verify'." >&2; exit 1; }
+"$PY" .forge/validate_skill.py --all .agents/skills >/dev/null 2>&1 || fail "skill validator failed."
+"$PY" .forge/validate_library.py >/dev/null 2>&1 || fail "library validator failed."
+[ -f .forge/tests/run.py ] && { "$PY" .forge/tests/run.py >/dev/null 2>&1 || fail "forge tooling unit tests failed."; }
+"$PY" .forge/run_evals.py --all --check >/dev/null 2>&1 || fail "eval structure check failed."
+"$PY" .forge/doc_drift.py >/dev/null 2>&1 || fail "docs are out of sync (doc_drift)."
+# Field-inbox age (machine-local, warn-only; silent when not configured).
+"$PY" .forge/hooks/inbox_age.py 2>/dev/null
+# Template purity: the shipped memory file must stay the pristine template.
+# Instance lessons belong in the private memory the context bridge loads,
+# never in the tracked file. This makes the 2026-07 memory wipe unrepeatable
+# in both directions.
+if [ -f .forge/templates/02_memory.md ] && [ -f .resonance/02_memory.md ]; then
+  cmp -s .forge/templates/02_memory.md .resonance/02_memory.md || fail "tracked .resonance/02_memory.md diverged from the canonical template (.forge/templates/02_memory.md). Instance lessons belong in the private memory."
+fi
+echo "Resonance ship-gate: green." >&2
+exit 0

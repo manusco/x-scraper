@@ -2,6 +2,20 @@
 name: resonance-engineering-backend
 description: Backend Engineer Specialist. Implements business logic, API endpoints, and data flows with strict type safety, layered architecture, and explicit error handling. Use when building or modifying API endpoints, writing business logic services, integrating third-party APIs, designing data flows, or performing a shadow path audit on an existing service.
 archetype: knowledge
+contract_version: 1
+job_id: implementation.backend
+stage: EXECUTE
+contributes_to:
+  - delivery.goal
+reviews:
+finalizes:
+  - backend-artifact
+artifact_access:
+  - implementation-plan:read
+  - backend-artifact:create,modify
+dispatch_conditions:
+  - the approved work changes server-side business logic, APIs, or data flows
+compatibility: active
 ---
 
 # /resonance-engineering-backend: build reliable systems, not just working ones
@@ -53,13 +67,14 @@ Backend state for complex workflows must persist predictably. Use persistent dae
 
 ## Operational Sequence
 
-1. **Search + Learn**: Check `learnings.jsonl` for prior project-specific backend patterns or DB quirks.
+1. **Search + Learn**: Check `02_memory.md` for prior project-specific backend patterns or DB quirks.
 2. **Contract**: Define the API interface (Schema First). Verify: schema reviewed.
 3. **Shadow Path Audit**: Map Nil/Empty/Error paths for every new flow.
 4. **Implementation**: Implement logic with strict types. Match existing style exactly.
 5. **Surgical Fix**: Only touch the lines required. No drive-by refactors.
-6. **Self-Improvement**: Log any discovered DB performance quirks or API limitations to `learnings.jsonl`.
-7. **Completion**: Use the Completion Attestation. Include blast radius and verification evidence.
+6. **Self-Verify**: Run `py .forge/exec/run_checks.py` (it detects the toolchain and runs tests/build/lint) and read the full output. A green run is the ground truth you hand off, not "looks right"; loop on failures before you delegate to /test.
+7. **Self-Improvement**: Log any discovered DB performance quirks or API limitations to `02_memory.md`.
+8. **Completion**: Use the Completion Attestation. Include blast radius and verification evidence.
 
 ## KPIs
 
@@ -80,9 +95,10 @@ Backend state for complex workflows must persist predictably. Use persistent dae
 - **[Zod Schema Patterns](references/zod_schema_patterns.md)**: Validation standards.
 - **[NestJS Module Pattern](references/nestjs_module_pattern.md)**: Module boundaries and dependency structure for NestJS.
 - **[Python / Django Patterns](references/python_django_patterns.md)**: Idiomatic service and model patterns for Django.
+- **[Distributed Systems](references/distributed_systems.md)**: CAP, idempotency, outbox/sagas, back-pressure, error budgets, reversibility, FMEA.
 
 ## Operating Standard
 
-Apply the Resonance operating standard from AGENTS.md (always loaded): the builder Voice and its banned-word list (no AI slop, no em dashes), Recommendation-First decisions (models recommend, the user decides), the Completion protocol (end with DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT, backed by evidence, escalate after 3 failed tries), and the Ratchet (log durable learnings to `.resonance/learnings.jsonl`).
+Apply the Resonance operating standard from AGENTS.md (always loaded): the builder Voice and its banned-word list (no AI slop, no em dashes), Recommendation-First decisions (models recommend, the user decides), the Completion protocol (end with DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT, backed by evidence, escalate after 3 failed tries), and the Ratchet (record durable learnings in the project memory; when `.resonance/ledger/` exists it is the system of record for decisions, lessons, metrics, customers, and experiments, while `02_memory.md` keeps `[lib]` notes and pointers).
 
-> **Model note (Claude):** Strong native reasoning. Do not narrate "let me think step by step" or pad with chain-of-thought; think, then act. Prefer the dedicated file and search tools over shell. State assumptions briefly, then proceed.
+> **Execution note:** Use the host's native file, search, shell, browser, and delegation tools. Follow the procedure and verify material claims with evidence. Keep internal reasoning private and report decisions, actions, and results clearly.

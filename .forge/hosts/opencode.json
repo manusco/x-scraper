@@ -1,0 +1,20 @@
+{
+  "host": "opencode",
+  "label": "OpenCode (open-source, model-agnostic)",
+  "default_model": "open-weights",
+  "tool_names": {
+    "read": "read",
+    "write": "write",
+    "edit": "edit",
+    "bash": "bash",
+    "grep": "grep",
+    "glob": "glob",
+    "ask": "ask",
+    "subagent": "task"
+  },
+  "invocation": "/<alias> (command) or AGENTS.md routing",
+  "command_path": ".opencode/commands/{alias}.md",
+  "command_style": "prompt",
+  "context_bridge": null,
+  "notes": "Runs any backing model including local open-weights. Reads AGENTS.md automatically and custom commands from .opencode/commands. No separate bridge file is needed."
+}

@@ -1,6 +1,0 @@
-#!/usr/bin/env bash
-# Resonance git hook (vendored). Advisory update check on pull/checkout.
-root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-[ -f "$root/.agents/.runtime/hooks/resonance-check.sh" ] && \
-  sh "$root/.agents/.runtime/hooks/resonance-check.sh" 2>/dev/null || true
-exit 0
